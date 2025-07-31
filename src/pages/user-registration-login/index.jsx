@@ -102,8 +102,8 @@ const UserRegistrationLogin = () => {
       // Simulate API call
       await new Promise(resolve => setTimeout(resolve, 2000));
       
-      // Redirect to onboarding flow for new users
-      navigate('/onboarding');
+      // Redirect to career assessment for new users
+      navigate('/ai-career-assessment');
     } catch (error) {
       setErrors({ general: 'Registration failed. Please try again.' });
     } finally {
