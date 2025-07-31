@@ -2,6 +2,8 @@
 
 A comprehensive career assessment platform that helps users discover their ideal career path through AI-powered assessments based on Ikigai principles.
 
+> **🚀 Live Demo:** Deploying to production...
+
 ## 🏗️ **Architecture**
 
 - **Frontend**: React 18 + Vite + Redux Toolkit + TailwindCSS
