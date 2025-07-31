@@ -169,6 +169,18 @@ const AssessmentResults = () => {
           
           <div className="flex items-center space-x-2">
             <SocialShareButtons onShare={handleShareResults} />
+            {userProfile && !userProfile.email && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  // TODO: Open profile completion modal or navigate to profile page
+                  alert('Profile completion coming soon! We\'ll add email, location, and experience details.');
+                }}
+              >
+                Complete Profile
+              </Button>
+            )}
             <Button
               variant="outline"
               size="sm"
@@ -193,8 +205,8 @@ const AssessmentResults = () => {
           </h1>
           <p className="text-muted-foreground max-w-2xl mx-auto">
             {userProfile ? (
-              <>Based on your assessment answers, we've identified career matches perfect for someone with {userProfile.experience} years of experience. 
-              {userProfile.currentRole && ` Your background in ${userProfile.currentRole} provides valuable insights for these recommendations.`}</>
+              <>Based on your assessment answers, we've identified your top career matches and growth opportunities. 
+              These personalized recommendations will help you discover roles where you'll thrive and skills to develop.</>
             ) : (
               'Based on your assessment, we\'ve identified your top career matches and growth opportunities. Discover roles where you\'ll thrive and skills to develop.'
             )}
