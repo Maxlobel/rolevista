@@ -346,9 +346,6 @@ export const {
   addToHistory,
 } = assessmentSlice.actions;
 
-// Export async thunks
-export { startAssessmentSession, saveAssessmentAnswer };
-
 // Selectors
 export const selectCurrentQuestionIndex = (state) => state.assessment.currentQuestionIndex;
 export const selectAnswers = (state) => state.assessment.answers;
