@@ -91,7 +91,12 @@ const AssessmentResults = () => {
   useEffect(() => {
     // Simulate loading
     const timer = setTimeout(() => {
-      setIsLoading(false);
+      try {
+        setIsLoading(false);
+      } catch (error) {
+        console.error('Error in assessment results:', error);
+        setIsLoading(false);
+      }
     }, 2000);
 
     return () => clearTimeout(timer);
@@ -114,6 +119,21 @@ const AssessmentResults = () => {
         <div className="text-center space-y-4">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
           <p className="text-muted-foreground">Analyzing your career potential...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Safety check for career data
+  if (!careerRoles || careerRoles.length === 0) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <h2 className="text-xl font-semibold text-foreground">Assessment Complete!</h2>
+          <p className="text-muted-foreground">Processing your career recommendations...</p>
+          <Button onClick={() => navigate('/ai-career-assessment')}>
+            Retake Assessment
+          </Button>
         </div>
       </div>
     );
@@ -166,10 +186,12 @@ const AssessmentResults = () => {
           {/* Main Content - Career Roles */}
           <div className="lg:col-span-2 space-y-6">
             {/* Career Summary */}
-            <CareerSummary 
-              topRole={careerRoles[0]} 
-              onUpgradeClick={handleUpgradeClick}
-            />
+            {careerRoles && careerRoles.length > 0 && (
+              <CareerSummary 
+                topRole={careerRoles[0]} 
+                onUpgradeClick={handleUpgradeClick}
+              />
+            )}
 
             {/* Top 5 Career Roles */}
             <div className="space-y-4">
