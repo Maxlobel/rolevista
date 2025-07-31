@@ -70,7 +70,7 @@ const UserProfileSetup = ({ onComplete }) => {
   };
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-8">
+    <div className="max-w-lg mx-auto px-4 py-8">
       <div className="text-center mb-8">
         <div className="flex items-center justify-center mb-4">
           <div className="w-16 h-16 bg-primary rounded-full flex items-center justify-center">
@@ -94,24 +94,32 @@ const UserProfileSetup = ({ onComplete }) => {
             </div>
           )}
 
-          {/* Name Fields */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Input
-              label="First Name"
-              placeholder="Your first name"
-              value={profileData.firstName}
-              onChange={(e) => handleInputChange('firstName', e.target.value)}
-              error={errors.firstName}
-              required
-            />
-            <Input
-              label="Last Name"
-              placeholder="Your last name"
-              value={profileData.lastName}
-              onChange={(e) => handleInputChange('lastName', e.target.value)}
-              error={errors.lastName}
-              required
-            />
+          {/* Name Fields - Single Row */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-foreground">
+              Your Name
+            </label>
+            <div className="grid grid-cols-2 gap-3">
+              <Input
+                placeholder="First name"
+                value={profileData.firstName}
+                onChange={(e) => handleInputChange('firstName', e.target.value)}
+                error={errors.firstName}
+                required
+              />
+              <Input
+                placeholder="Last name"
+                value={profileData.lastName}
+                onChange={(e) => handleInputChange('lastName', e.target.value)}
+                error={errors.lastName}
+                required
+              />
+            </div>
+            {(errors.firstName || errors.lastName) && (
+              <p className="text-sm text-destructive">
+                {errors.firstName || errors.lastName}
+              </p>
+            )}
           </div>
 
           {/* Submit Button */}
