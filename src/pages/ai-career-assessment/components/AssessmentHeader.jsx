@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import Button from '../../../components/ui/Button';
 import Icon from '../../../components/AppIcon';
 
-const AssessmentHeader = ({ onExitClick }) => {
+const AssessmentHeader = ({ onExitClick, userProfile }) => {
   const navigate = useNavigate();
 
   return (
@@ -14,10 +14,10 @@ const AssessmentHeader = ({ onExitClick }) => {
         </div>
         <div>
           <h1 className="text-xl lg:text-2xl font-semibold text-text-primary">
-            AI Career Assessment
+            {userProfile ? `Hi ${userProfile.firstName}! Let's find your ideal career` : 'AI Career Assessment'}
           </h1>
           <p className="text-sm text-text-secondary">
-            Discover your ideal career path
+            {userProfile ? 'Complete your personalized assessment below' : 'Discover your ideal career path'}
           </p>
         </div>
       </div>

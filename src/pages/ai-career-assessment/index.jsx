@@ -7,9 +7,12 @@ import NavigationButtons from './components/NavigationButtons';
 import LoadingSpinner from './components/LoadingSpinner';
 import ExitConfirmationModal from './components/ExitConfirmationModal';
 import AssessmentHeader from './components/AssessmentHeader';
+import UserProfileSetup from './components/UserProfileSetup';
 
 const AICareerAssessment = () => {
   const navigate = useNavigate();
+  const [profileComplete, setProfileComplete] = useState(false);
+  const [userProfile, setUserProfile] = useState(null);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [answers, setAnswers] = useState({});
   const [isLoading, setIsLoading] = useState(false);
@@ -246,6 +249,7 @@ const AICareerAssessment = () => {
       // Assessment completed
       const assessmentData = {
         answers,
+        userProfile,
         completedAt: new Date().toISOString(),
         duration: Math.round((new Date() - assessmentStartTime) / 1000 / 60), // minutes
         totalQuestions
@@ -295,6 +299,30 @@ const AICareerAssessment = () => {
     return () => window.removeEventListener('keydown', handleKeyPress);
   }, [canGoNext]);
 
+  // Check for existing profile data on component mount
+  useEffect(() => {
+    const existingProfile = localStorage.getItem('userProfile');
+    if (existingProfile) {
+      try {
+        const parsedProfile = JSON.parse(existingProfile);
+        setUserProfile(parsedProfile);
+        setProfileComplete(true);
+      } catch (error) {
+        console.error('Error parsing saved profile:', error);
+        localStorage.removeItem('userProfile');
+      }
+    }
+  }, []);
+
+  // Handle profile completion
+  const handleProfileComplete = (profileData) => {
+    setUserProfile(profileData);
+    setProfileComplete(true);
+    
+    // Track assessment start with user data
+    console.log('Profile completed for:', profileData.firstName, profileData.lastName);
+  };
+
   return (
     <>
       <Helmet>
@@ -303,43 +331,52 @@ const AICareerAssessment = () => {
       </Helmet>
 
       <div className="min-h-screen bg-background">
-        <div className="container mx-auto px-4 py-6 lg:py-8 max-w-4xl">
-          <AssessmentHeader onExitClick={() => setShowExitModal(true)} />
-          
-          <ProgressBar 
-            currentStep={currentQuestionIndex + 1} 
-            totalSteps={totalQuestions} 
-          />
+        {/* Show Profile Setup if not completed */}
+        {!profileComplete ? (
+          <UserProfileSetup onComplete={handleProfileComplete} />
+        ) : (
+          /* Show Assessment Questions if profile is complete */
+          <div className="container mx-auto px-4 py-6 lg:py-8 max-w-4xl">
+            <AssessmentHeader 
+              onExitClick={() => setShowExitModal(true)}
+              userProfile={userProfile}
+            />
+            
+            <ProgressBar 
+              currentStep={currentQuestionIndex + 1} 
+              totalSteps={totalQuestions} 
+            />
 
-          {isLoading ? (
-            <LoadingSpinner message="Analyzing your response and preparing next question..." />
-          ) : (
-            <div className="space-y-6">
-              <QuestionCard
-                question={currentQuestion}
-                onAnswer={handleAnswer}
-                selectedAnswer={selectedAnswer}
-              />
+            {isLoading ? (
+              <LoadingSpinner message="Analyzing your response and preparing next question..." />
+            ) : (
+              <div className="space-y-6">
+                <QuestionCard
+                  question={currentQuestion}
+                  onAnswer={handleAnswer}
+                  selectedAnswer={selectedAnswer}
+                />
 
-              <NavigationButtons
-                onPrevious={handlePrevious}
-                onNext={handleNext}
-                canGoBack={canGoBack}
-                canGoNext={canGoNext}
-                isLoading={isLoading}
-                isLastQuestion={isLastQuestion}
-                currentStep={currentQuestionIndex + 1}
-                totalSteps={totalQuestions}
-              />
-            </div>
-          )}
-        </div>
+                <NavigationButtons
+                  onPrevious={handlePrevious}
+                  onNext={handleNext}
+                  canGoBack={canGoBack}
+                  canGoNext={canGoNext}
+                  isLoading={isLoading}
+                  isLastQuestion={isLastQuestion}
+                  currentStep={currentQuestionIndex + 1}
+                  totalSteps={totalQuestions}
+                />
+              </div>
+            )}
 
-        <ExitConfirmationModal
-          isOpen={showExitModal}
-          onClose={() => setShowExitModal(false)}
-          onConfirm={handleExitConfirm}
-        />
+            <ExitConfirmationModal
+              isOpen={showExitModal}
+              onClose={() => setShowExitModal(false)}
+              onConfirm={handleExitConfirm}
+            />
+          </div>
+        )}
       </div>
     </>
   );

@@ -14,6 +14,7 @@ const AssessmentResults = () => {
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [expandedCard, setExpandedCard] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [userProfile, setUserProfile] = useState(null);
 
   // Mock data for demonstration
   const [careerRoles] = useState([
@@ -89,9 +90,24 @@ const AssessmentResults = () => {
   });
 
   useEffect(() => {
-    // Simulate loading
+    // Load user profile and assessment data
     const timer = setTimeout(() => {
       try {
+        // Load user profile
+        const savedProfile = localStorage.getItem('userProfile');
+        if (savedProfile) {
+          setUserProfile(JSON.parse(savedProfile));
+        }
+
+        // Load assessment results
+        const savedResults = localStorage.getItem('assessment_results');
+        if (savedResults) {
+          const results = JSON.parse(savedResults);
+          if (results.userProfile) {
+            setUserProfile(results.userProfile);
+          }
+        }
+
         setIsLoading(false);
       } catch (error) {
         console.error('Error in assessment results:', error);
@@ -173,11 +189,15 @@ const AssessmentResults = () => {
             <span className="text-sm font-medium">AI Analysis Complete</span>
           </div>
           <h1 className="text-3xl md:text-4xl font-bold text-foreground">
-            Your Career Intelligence Report
+            {userProfile ? `${userProfile.firstName}'s Career Intelligence Report` : 'Your Career Intelligence Report'}
           </h1>
           <p className="text-muted-foreground max-w-2xl mx-auto">
-            Based on your assessment, we've identified your top career matches and growth opportunities. 
-            Discover roles where you'll thrive and skills to develop.
+            {userProfile ? (
+              <>Based on your assessment answers, we've identified career matches perfect for someone with {userProfile.experience} years of experience. 
+              {userProfile.currentRole && ` Your background in ${userProfile.currentRole} provides valuable insights for these recommendations.`}</>
+            ) : (
+              'Based on your assessment, we\'ve identified your top career matches and growth opportunities. Discover roles where you\'ll thrive and skills to develop.'
+            )}
           </p>
         </div>
 
