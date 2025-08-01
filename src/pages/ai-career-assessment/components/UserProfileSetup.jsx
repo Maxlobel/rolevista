@@ -5,8 +5,7 @@ import Input from '../../../components/ui/Input';
 
 const UserProfileSetup = ({ onComplete }) => {
   const [profileData, setProfileData] = useState({
-    firstName: '',
-    lastName: ''
+    fullName: ''
   });
 
   const [errors, setErrors] = useState({});
@@ -15,12 +14,14 @@ const UserProfileSetup = ({ onComplete }) => {
   const validateForm = () => {
     const newErrors = {};
 
-    if (!profileData.firstName.trim()) {
-      newErrors.firstName = 'First name is required';
-    }
-
-    if (!profileData.lastName.trim()) {
-      newErrors.lastName = 'Last name is required';
+    if (!profileData.fullName.trim()) {
+      newErrors.fullName = 'Please enter your full name';
+    } else {
+      // Check if at least two words (first and last name)
+      const nameParts = profileData.fullName.trim().split(' ').filter(part => part.length > 0);
+      if (nameParts.length < 2) {
+        newErrors.fullName = 'Please enter both first and last name';
+      }
     }
 
     setErrors(newErrors);
@@ -56,11 +57,22 @@ const UserProfileSetup = ({ onComplete }) => {
       // For now, simulate API call
       await new Promise(resolve => setTimeout(resolve, 800));
       
+      // Parse full name into first and last name
+      const nameParts = profileData.fullName.trim().split(' ').filter(part => part.length > 0);
+      const firstName = nameParts[0];
+      const lastName = nameParts.slice(1).join(' '); // Handle multiple last names
+      
+      const parsedProfile = {
+        fullName: profileData.fullName,
+        firstName,
+        lastName
+      };
+      
       // Store profile data in localStorage for now
-      localStorage.setItem('userProfile', JSON.stringify(profileData));
+      localStorage.setItem('userProfile', JSON.stringify(parsedProfile));
       
       // Call the completion callback
-      onComplete(profileData);
+      onComplete(parsedProfile);
     } catch (error) {
       console.error('Error saving profile:', error);
       setErrors({ general: 'Failed to save profile. Please try again.' });
@@ -94,32 +106,18 @@ const UserProfileSetup = ({ onComplete }) => {
             </div>
           )}
 
-          {/* Name Fields - Single Row */}
+          {/* Name Field - Single Input */}
           <div className="space-y-2">
             <label className="text-sm font-medium text-foreground">
               Your Name
             </label>
-            <div className="grid grid-cols-2 gap-3">
-              <Input
-                placeholder="First name"
-                value={profileData.firstName}
-                onChange={(e) => handleInputChange('firstName', e.target.value)}
-                error={errors.firstName}
-                required
-              />
-              <Input
-                placeholder="Last name"
-                value={profileData.lastName}
-                onChange={(e) => handleInputChange('lastName', e.target.value)}
-                error={errors.lastName}
-                required
-              />
-            </div>
-            {(errors.firstName || errors.lastName) && (
-              <p className="text-sm text-destructive">
-                {errors.firstName || errors.lastName}
-              </p>
-            )}
+            <Input
+              placeholder="First and last name"
+              value={profileData.fullName}
+              onChange={(e) => handleInputChange('fullName', e.target.value)}
+              error={errors.fullName}
+              required
+            />
           </div>
 
           {/* Submit Button */}
