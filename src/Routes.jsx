@@ -17,6 +17,7 @@ const SubscriptionPricing = lazy(() => import("pages/subscription-pricing"));
 const AssessmentResults = lazy(() => import("pages/assessment-results"));
 const Login = lazy(() => import("pages/login"));
 const DataDebug = lazy(() => import("pages/data-debug"));
+const Auth = lazy(() => import("pages/auth"));
 
 // Loading component for Suspense fallback
 const PageLoader = () => (
@@ -47,6 +48,9 @@ const Routes = () => {
                               <Route path="/subscription-pricing" element={<SubscriptionPricing />} />
                   <Route path="/assessment-results" element={<AssessmentResults />} />
                   <Route path="/login" element={<Login />} />
+                  <Route path="/auth" element={<Auth />} />
+                  <Route path="/sign-up" element={<Auth />} />
+                  <Route path="/sign-in" element={<Auth />} />
                   <Route path="/data-debug" element={<DataDebug />} />
                   <Route path="*" element={<NotFound />} />
           </RouterRoutes>

@@ -49,9 +49,9 @@ const LandingHeader = () => {
                 Log In
               </Button>
             </Link>
-            <Link to="/ai-career-assessment">
+            <Link to="/auth">
               <Button variant="default" size="sm">
-                Start Assessment
+                Get Started
               </Button>
             </Link>
           </div>
@@ -88,9 +88,9 @@ const LandingHeader = () => {
                     Log In
                   </Button>
                 </Link>
-                <Link to="/ai-career-assessment" onClick={() => setIsMobileMenuOpen(false)}>
+                <Link to="/auth" onClick={() => setIsMobileMenuOpen(false)}>
                   <Button variant="default" size="sm" fullWidth>
-                    Start Assessment
+                    Get Started
                   </Button>
                 </Link>
               </div>

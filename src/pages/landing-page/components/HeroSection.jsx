@@ -21,7 +21,7 @@ const HeroSection = () => {
         
         {/* CTA Button */}
         <div className="mb-12">
-          <Link to="/ai-career-assessment">
+                        <Link to="/auth">
             <Button 
               variant="default" 
               size="lg" 

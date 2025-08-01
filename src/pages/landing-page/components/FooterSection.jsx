@@ -7,7 +7,7 @@ const FooterSection = () => {
 
   const footerLinks = {
     product: [
-      { name: 'Career Assessment', path: '/ai-career-assessment' },
+              { name: 'Get Started', path: '/auth' },
       { name: 'Job Matches', path: '/job-matches' },
       { name: 'Skill Analysis', path: '/skill-gap-analysis' },
       { name: 'AI Coach', path: '/ai-career-coach-chat' },
