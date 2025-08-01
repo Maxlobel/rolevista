@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Share2, Crown, Lock, TrendingUp, ArrowRight, Star, Zap, Brain, Target } from 'lucide-react';
 import Button from '../../components/ui/Button';
+import { matchCareersToAnswers, generateSkillsAnalysis } from '../../utils/careerMatcher';
 import CareerRoleCard from './components/CareerRoleCard';
 import SkillHeatmap from './components/SkillHeatmap';
 import CareerSummary from './components/CareerSummary';
@@ -16,78 +17,10 @@ const AssessmentResults = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [userProfile, setUserProfile] = useState(null);
 
-  // Mock data for demonstration
-  const [careerRoles] = useState([
-    {
-      id: 1,
-      title: 'UX/UI Designer',
-      fitScore: 94,
-      salary: '$65,000 - $95,000',
-      description: 'Create intuitive and engaging user experiences',
-      alignment: 'Your strong creative thinking and problem-solving skills align perfectly with UX design. Your attention to detail and empathy for users make you an ideal candidate.',
-      growth: '+15% job growth',
-      companies: ['Google', 'Meta', 'Adobe']
-    },
-    {
-      id: 2,
-      title: 'Product Manager',
-      fitScore: 89,
-      salary: '$85,000 - $130,000',
-      description: 'Lead product strategy and development',
-      alignment: 'Your leadership skills and strategic thinking capabilities strongly match product management requirements. Your analytical mindset is a key strength.',
-      growth: '+18% job growth',
-      companies: ['Microsoft', 'Amazon', 'Spotify']
-    },
-    {
-      id: 3,
-      title: 'Data Analyst',
-      fitScore: 85,
-      salary: '$55,000 - $80,000',
-      description: 'Transform data into actionable insights',
-      alignment: 'Your analytical skills and attention to detail make you well-suited for data analysis. Your curiosity about patterns aligns with this role.',
-      growth: '+22% job growth',
-      companies: ['Netflix', 'Airbnb', 'Uber']
-    },
-    {
-      id: 4,
-      title: 'Marketing Specialist',
-      fitScore: 82,
-      salary: '$45,000 - $70,000',
-      description: 'Drive brand awareness and customer engagement',
-      alignment: 'Your communication skills and creative approach to problem-solving are strong indicators for marketing success.',
-      growth: '+12% job growth',
-      companies: ['Nike', 'Coca-Cola', 'Apple']
-    },
-    {
-      id: 5,
-      title: 'Business Analyst',
-      fitScore: 78,
-      salary: '$60,000 - $85,000',
-      description: 'Bridge business needs with technical solutions',
-      alignment: 'Your structured thinking and communication abilities position you well for business analysis roles.',
-      growth: '+14% job growth',
-      companies: ['IBM', 'Deloitte', 'McKinsey']
-    }
-  ]);
-
-  const [skillsData] = useState({
-    strengths: [
-      { name: 'Creative Thinking', score: 92 },
-      { name: 'Problem Solving', score: 89 },
-      { name: 'Communication', score: 87 },
-      { name: 'Leadership', score: 85 }
-    ],
-    developing: [
-      { name: 'Data Analysis', score: 65 },
-      { name: 'Project Management', score: 68 },
-      { name: 'Technical Writing', score: 62 }
-    ],
-    gaps: [
-      { name: 'Advanced Excel', score: 45 },
-      { name: 'SQL', score: 38 },
-      { name: 'Python', score: 42 }
-    ]
-  });
+  // Dynamic career recommendations based on assessment answers
+  const [careerRoles, setCareerRoles] = useState([]);
+  const [skillsData, setSkillsData] = useState({ strengths: [], developing: [], gaps: [] });
+  const [assessmentAnswers, setAssessmentAnswers] = useState({});
 
   useEffect(() => {
     // Load user profile and assessment data
@@ -99,12 +32,48 @@ const AssessmentResults = () => {
           setUserProfile(JSON.parse(savedProfile));
         }
 
-        // Load assessment results
+        // Load assessment results with answers
         const savedResults = localStorage.getItem('assessment_results');
         if (savedResults) {
           const results = JSON.parse(savedResults);
+          
           if (results.userProfile) {
             setUserProfile(results.userProfile);
+          }
+          
+          if (results.answers) {
+            setAssessmentAnswers(results.answers);
+            
+            // Generate personalized career recommendations
+            const recommendations = matchCareersToAnswers(results.answers);
+            setCareerRoles(recommendations);
+            
+            // Generate personalized skills analysis
+            const skills = generateSkillsAnalysis(results.answers);
+            setSkillsData({
+              strengths: skills.strengths,
+              developing: skills.developing,
+              gaps: [
+                { name: 'Industry Networking', score: 58 },
+                { name: 'Advanced Analytics', score: 52 },
+                { name: 'Public Speaking', score: 48 }
+              ]
+            });
+          } else {
+            // Fallback to mock data if no answers found
+            console.warn('No assessment answers found, using fallback recommendations');
+            setCareerRoles([
+              {
+                id: 1,
+                title: 'Complete Assessment',
+                fitScore: 0,
+                salary: 'Take assessment for personalized recommendations',
+                description: 'Complete the career assessment to get your personalized results',
+                alignment: 'Take the assessment to see how your skills and preferences align with different career paths.',
+                growth: 'Personalized data available after assessment',
+                companies: ['Take Assessment First']
+              }
+            ]);
           }
         }
 
