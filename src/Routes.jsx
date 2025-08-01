@@ -16,6 +16,7 @@ const ResumeOptimizerTool = lazy(() => import("pages/resume-optimizer-tool"));
 const SubscriptionPricing = lazy(() => import("pages/subscription-pricing"));
 const AssessmentResults = lazy(() => import("pages/assessment-results"));
 const Login = lazy(() => import("pages/login"));
+const DataDebug = lazy(() => import("pages/data-debug"));
 
 // Loading component for Suspense fallback
 const PageLoader = () => (
@@ -43,10 +44,11 @@ const Routes = () => {
             <Route path="/skill-gap-analysis" element={<SkillGapAnalysis />} />
             <Route path="/ai-career-coach-chat" element={<AICareerCoachChat />} />
             <Route path="/resume-optimizer-tool" element={<ResumeOptimizerTool />} />
-            <Route path="/subscription-pricing" element={<SubscriptionPricing />} />
-            <Route path="/assessment-results" element={<AssessmentResults />} />
-            <Route path="/login" element={<Login />} />
-            <Route path="*" element={<NotFound />} />
+                              <Route path="/subscription-pricing" element={<SubscriptionPricing />} />
+                  <Route path="/assessment-results" element={<AssessmentResults />} />
+                  <Route path="/login" element={<Login />} />
+                  <Route path="/data-debug" element={<DataDebug />} />
+                  <Route path="*" element={<NotFound />} />
           </RouterRoutes>
         </Suspense>
       </ErrorBoundary>

@@ -153,6 +153,13 @@ const AssessmentResults = () => {
             <Button
               variant="outline"
               size="sm"
+              onClick={() => navigate('/data-debug')}
+            >
+              View Data
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
               onClick={() => navigate('/career-profile-dashboard')}
             >
               Dashboard
