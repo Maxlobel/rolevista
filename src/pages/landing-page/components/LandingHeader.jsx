@@ -8,26 +8,58 @@ const LandingHeader = () => {
 
   const navigationItems = [
     { name: 'How it Works', href: '#how-it-works' },
+    { name: 'Social Proof', href: '#social-proof' },
     { name: 'Pricing', href: '#pricing' },
-    { name: 'Success Stories', href: '#testimonials' },
-    { name: 'About', href: '#about' }
+    { name: 'Contact', href: '#footer' }
   ];
 
   const toggleMobileMenu = () => {
     setIsMobileMenuOpen(!isMobileMenuOpen);
   };
 
+  // Smooth scroll to top function
+  const scrollToTop = (e) => {
+    e.preventDefault();
+    window.scrollTo({
+      top: 0,
+      behavior: 'smooth'
+    });
+  };
+
+  // Smooth scroll to section function
+  const scrollToSection = (e, href) => {
+    e.preventDefault();
+    const element = document.querySelector(href);
+    if (element) {
+      // Get the header height to offset the scroll position
+      const headerHeight = 64; // 16 * 4 = 64px (h-16 in Tailwind)
+      const elementPosition = element.getBoundingClientRect().top;
+      const offsetPosition = elementPosition + window.pageYOffset - headerHeight;
+
+      window.scrollTo({
+        top: offsetPosition,
+        behavior: 'smooth'
+      });
+    }
+    // Close mobile menu if open
+    setIsMobileMenuOpen(false);
+  };
+
   return (
     <header className="fixed top-0 left-0 right-0 z-40 bg-surface/95 backdrop-blur-sm border-b border-border">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
-          {/* Logo */}
-          <Link to="/" className="flex items-center space-x-2">
+          {/* Logo - Fixed to scroll to top */}
+          <a 
+            href="#" 
+            onClick={scrollToTop}
+            className="flex items-center space-x-2 cursor-pointer"
+          >
             <div className="flex items-center justify-center w-8 h-8 bg-primary rounded-lg">
               <Icon name="Eye" size={20} color="white" />
             </div>
             <span className="text-xl font-semibold text-text-primary">RoleVista</span>
-          </Link>
+          </a>
 
           {/* Desktop Navigation */}
           <nav className="hidden md:flex items-center space-x-8">
@@ -35,7 +67,8 @@ const LandingHeader = () => {
               <a
                 key={item.name}
                 href={item.href}
-                className="text-text-secondary hover:text-text-primary transition-colors duration-200 text-sm font-medium"
+                onClick={(e) => scrollToSection(e, item.href)}
+                className="text-text-secondary hover:text-text-primary transition-colors duration-200 text-sm font-medium cursor-pointer"
               >
                 {item.name}
               </a>
@@ -75,8 +108,8 @@ const LandingHeader = () => {
                 <a
                   key={item.name}
                   href={item.href}
-                  onClick={() => setIsMobileMenuOpen(false)}
-                  className="block text-text-secondary hover:text-text-primary transition-colors duration-200 text-sm font-medium py-2"
+                  onClick={(e) => scrollToSection(e, item.href)}
+                  className="block text-text-secondary hover:text-text-primary transition-colors duration-200 text-sm font-medium py-2 cursor-pointer"
                 >
                   {item.name}
                 </a>

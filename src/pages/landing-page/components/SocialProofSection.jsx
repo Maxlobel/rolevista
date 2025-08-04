@@ -83,7 +83,7 @@ const SocialProofSection = () => {
   };
 
   return (
-    <section className="py-20 px-4 sm:px-6 lg:px-8 bg-muted">
+    <section id="social-proof" className="py-20 px-4 sm:px-6 lg:px-8 bg-muted">
       <div className="max-w-7xl mx-auto">
         {/* Success Metrics */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-8 mb-20">
