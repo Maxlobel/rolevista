@@ -4,6 +4,7 @@ import { Eye, EyeOff, User, Mail, Phone, MapPin, Briefcase, GraduationCap } from
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import { authService } from '../../services/auth';
+import { isSupabaseConfigured } from '../../lib/supabase';
 
 const AuthPage = () => {
   const navigate = useNavigate();
@@ -12,6 +13,12 @@ const AuthPage = () => {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState({});
+  const [supabaseConfigured, setSupabaseConfigured] = useState(false);
+
+  // Check Supabase configuration on mount
+  useEffect(() => {
+    setSupabaseConfigured(isSupabaseConfigured());
+  }, []);
 
   // Form data for sign up
   const [signUpData, setSignUpData] = useState({
@@ -136,6 +143,12 @@ const AuthPage = () => {
       return;
     }
 
+    // Check if Supabase is configured
+    if (!supabaseConfigured) {
+      setErrors({ general: 'Supabase is not configured yet. Please follow the setup guide or use Demo Mode.' });
+      return;
+    }
+
     setIsLoading(true);
 
     try {
@@ -174,6 +187,12 @@ const AuthPage = () => {
     e.preventDefault();
     
     if (!validateSignIn()) {
+      return;
+    }
+
+    // Check if Supabase is configured
+    if (!supabaseConfigured) {
+      setErrors({ general: 'Supabase is not configured yet. Please follow the setup guide or use Demo Mode.' });
       return;
     }
 
@@ -268,6 +287,40 @@ const AuthPage = () => {
             Sign In
           </button>
         </div>
+
+        {/* Supabase Configuration Notice */}
+        {!supabaseConfigured && (
+          <div className="bg-blue-50 border border-blue-200 rounded-xl p-6 mb-8">
+            <div className="flex items-center mb-3">
+              <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center mr-3">
+                <span className="text-white text-sm">⚙️</span>
+              </div>
+              <h3 className="text-lg font-semibold text-blue-900">Setup Required</h3>
+            </div>
+            <div className="text-blue-800 space-y-2 text-sm">
+              <p className="font-medium">Supabase database not configured yet!</p>
+              <p>To enable user authentication and data storage:</p>
+              <ol className="list-decimal list-inside space-y-1 ml-4">
+                <li>Read the <code className="bg-blue-100 px-2 py-1 rounded text-xs">SUPABASE_SETUP.md</code> guide</li>
+                <li>Create a Supabase project at <a href="https://supabase.com" target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">supabase.com</a></li>
+                <li>Run the database schema</li>
+                <li>Add your credentials to <code className="bg-blue-100 px-2 py-1 rounded text-xs">.env.local</code></li>
+                <li>Restart your dev server</li>
+              </ol>
+              <div className="mt-4 p-3 bg-blue-100 rounded-lg">
+                <p className="font-medium text-xs">For now, you can still test the app with localStorage (limited functionality)</p>
+                <Button
+                  onClick={() => navigate('/ai-career-assessment')}
+                  className="mt-2"
+                  size="sm"
+                  variant="outline"
+                >
+                  Continue with Demo Mode →
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Form Container */}
         <div className="bg-card rounded-xl border border-border p-8 shadow-sm">
@@ -498,9 +551,9 @@ const AuthPage = () => {
                 type="submit"
                 className="w-full"
                 loading={isLoading}
-                disabled={isLoading}
+                disabled={isLoading || !supabaseConfigured}
               >
-                {isLoading ? 'Creating Account...' : 'Create Account & Start Assessment'}
+                {isLoading ? 'Creating Account...' : !supabaseConfigured ? 'Setup Required - See Above' : 'Create Account & Start Assessment'}
               </Button>
             </form>
           ) : (
@@ -558,9 +611,9 @@ const AuthPage = () => {
                 type="submit"
                 className="w-full"
                 loading={isLoading}
-                disabled={isLoading}
+                disabled={isLoading || !supabaseConfigured}
               >
-                {isLoading ? 'Signing In...' : 'Sign In'}
+                {isLoading ? 'Signing In...' : !supabaseConfigured ? 'Setup Required - See Above' : 'Sign In'}
               </Button>
             </form>
           )}

@@ -4,6 +4,15 @@ import { createClient } from '@supabase/supabase-js'
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'your_supabase_project_url'
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'your_supabase_anon_key'
 
+// Check if Supabase is properly configured
+export const isSupabaseConfigured = () => {
+  return supabaseUrl !== 'your_supabase_project_url' && 
+         supabaseAnonKey !== 'your_supabase_anon_key' &&
+         supabaseUrl.startsWith('https://') &&
+         supabaseAnonKey.length > 50
+}
+
+// Create Supabase client (will work with placeholder values but won't make real requests)
 export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
 // Database Tables Schema (SQL to run in Supabase SQL Editor):

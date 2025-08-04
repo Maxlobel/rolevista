@@ -1,4 +1,4 @@
-import { supabase } from '../lib/supabase'
+import { supabase, isSupabaseConfigured } from '../lib/supabase'
 import { matchCareersToAnswers, generateSkillsAnalysis } from '../utils/careerMatcher'
 import { authService } from './auth'
 
@@ -8,6 +8,11 @@ export const assessmentService = {
   // Start a new assessment session
   async startAssessment(totalQuestions = 15) {
     try {
+      // Check if Supabase is configured
+      if (!isSupabaseConfigured()) {
+        return { session: null, error: 'Supabase not configured. Using demo mode.' }
+      }
+
       const { user } = await authService.getCurrentUser()
       if (!user) throw new Error('User not authenticated')
 

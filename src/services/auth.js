@@ -1,4 +1,4 @@
-import { supabase } from '../lib/supabase'
+import { supabase, isSupabaseConfigured } from '../lib/supabase'
 
 // Authentication Service for Supabase
 export const authService = {
@@ -88,6 +88,11 @@ export const authService = {
   // Get current user session
   async getCurrentUser() {
     try {
+      // Check if Supabase is configured
+      if (!isSupabaseConfigured()) {
+        return { user: null, error: null } // No error, just no user when not configured
+      }
+
       const { data: { user }, error } = await supabase.auth.getUser()
       if (error) throw error
       return { user, error: null }
