@@ -29,7 +29,7 @@ export const railwayAuthService = {
       const data = await response.json()
 
       if (!response.ok) {
-        throw new Error(data.error || 'Registration failed')
+        throw new Error(data.message || data.error || 'Registration failed')
       }
 
       // Store token and user data
@@ -61,7 +61,7 @@ export const railwayAuthService = {
       const data = await response.json()
 
       if (!response.ok) {
-        throw new Error(data.error || 'Login failed')
+        throw new Error(data.message || data.error || 'Login failed')
       }
 
       // Store token and user data

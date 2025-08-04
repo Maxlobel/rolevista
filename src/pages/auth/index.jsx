@@ -156,7 +156,19 @@ const AuthPage = () => {
       );
 
       if (error) {
-        setErrors({ general: error });
+        // Make sign-up error messages more user-friendly
+        let friendlyError = error;
+        if (error.includes('already exists')) {
+          friendlyError = 'This email is already registered. Try signing in instead, or use a different email address.';
+        } else if (error.includes('Password must')) {
+          friendlyError = 'Password must be at least 8 characters with uppercase, lowercase, and a number.';
+        } else if (error.includes('Invalid email')) {
+          friendlyError = 'Please enter a valid email address.';
+        } else if (error.includes('accept the terms')) {
+          friendlyError = 'Please accept the terms and conditions to continue.';
+        }
+        
+        setErrors({ general: friendlyError });
         return;
       }
 
@@ -186,7 +198,15 @@ const AuthPage = () => {
       );
 
       if (error) {
-        setErrors({ general: error });
+        // Make sign-in error messages more user-friendly
+        let friendlyError = error;
+        if (error.includes('Invalid credentials') || error.includes('incorrect')) {
+          friendlyError = 'Invalid email or password. Please check your credentials and try again.';
+        } else if (error.includes('not found') || error.includes('does not exist')) {
+          friendlyError = 'No account found with this email. Please sign up first or check your email address.';
+        }
+        
+        setErrors({ general: friendlyError });
         return;
       }
 
