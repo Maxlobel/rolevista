@@ -37,9 +37,12 @@ app.use(limiter);
 
 // CORS configuration
 const allowedOrigins = [
-  process.env.FRONTEND_URL || 'http://localhost:4028',
+  process.env.FRONTEND_URL || 'http://localhost:3000',
+  'http://localhost:3000',
   'http://localhost:4028',
+  'http://127.0.0.1:3000',
   'http://127.0.0.1:4028',
+  'https://rolevista.vercel.app',
   // Add your Vercel domain here when deployed
   // 'https://your-app-name.vercel.app'
 ];

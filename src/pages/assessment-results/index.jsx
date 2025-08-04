@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Share2, Crown, Lock, TrendingUp, ArrowRight, Star, Zap, Brain, Target } from 'lucide-react';
 import Button from '../../components/ui/Button';
-import { matchCareersToAnswers, generateSkillsAnalysis } from '../../utils/careerMatcher';
+import { matchCareersToAdaptiveAnswers, generateEnhancedSkillsAnalysis } from '../../utils/adaptiveCareerMatcher';
 import CareerRoleCard from './components/CareerRoleCard';
 import SkillHeatmap from './components/SkillHeatmap';
 import CareerSummary from './components/CareerSummary';
@@ -44,12 +44,12 @@ const AssessmentResults = () => {
           if (results.answers) {
             setAssessmentAnswers(results.answers);
             
-            // Generate personalized career recommendations
-            const recommendations = matchCareersToAnswers(results.answers);
+            // Generate personalized career recommendations using adaptive matching
+            const recommendations = matchCareersToAdaptiveAnswers(results.answers, results.insights);
             setCareerRoles(recommendations);
             
-            // Generate personalized skills analysis
-            const skills = generateSkillsAnalysis(results.answers);
+            // Generate enhanced skills analysis
+            const skills = generateEnhancedSkillsAnalysis(results.answers, results.insights);
             setSkillsData({
               strengths: skills.strengths,
               developing: skills.developing,
