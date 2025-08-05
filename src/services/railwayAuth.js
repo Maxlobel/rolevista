@@ -22,7 +22,8 @@ export const railwayAuthService = {
           currentRole: userData.currentRole || '',
           industry: userData.industry || '',
           education: userData.education || '',
-          marketingConsent: userData.marketingConsent || false
+          marketingConsent: userData.marketingConsent || false,
+          acceptTerms: userData.acceptTerms || false
         }),
       })
 

@@ -4,6 +4,7 @@ import { Eye, EyeOff, User, Mail, Phone, MapPin, Briefcase, GraduationCap } from
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import { railwayAuthService as authService } from '../../services/railwayAuth';
+import PasswordStrengthIndicator from './components/PasswordStrengthIndicator';
 
 const AuthPage = () => {
   const navigate = useNavigate();
@@ -98,6 +99,8 @@ const AuthPage = () => {
       newErrors.password = 'Password is required';
     } else if (signUpData.password.length < 8) {
       newErrors.password = 'Password must be at least 8 characters';
+    } else if (!/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(signUpData.password)) {
+      newErrors.password = 'Password must contain at least one uppercase letter, lowercase letter, and number';
     }
 
     if (signUpData.password !== signUpData.confirmPassword) {
@@ -151,7 +154,8 @@ const AuthPage = () => {
           currentRole: signUpData.currentRole,
           industry: signUpData.industry,
           education: signUpData.education,
-          marketingConsent: signUpData.marketingConsent
+          marketingConsent: signUpData.marketingConsent,
+          acceptTerms: signUpData.termsAccepted
         }
       );
 
@@ -368,6 +372,7 @@ const AuthPage = () => {
                     >
                       {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                     </button>
+                    <PasswordStrengthIndicator password={signUpData.password} />
                   </div>
                   
                   <div className="relative">
