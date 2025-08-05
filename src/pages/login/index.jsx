@@ -1,270 +1,209 @@
-import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import { Eye, EyeOff, ArrowRight, Shield, CheckCircle } from 'lucide-react';
-import Button from '../../components/ui/Button';
-import Input from '../../components/ui/Input';
-import { Checkbox } from '../../components/ui/Checkbox';
-import SocialLogin from './components/SocialLogin';
-import TrustSignals from './components/TrustSignals';
+import React, { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { useDispatch, useSelector } from 'react-redux'
+import LoginBackground from './components/LoginBackground'
+import LoginForm from './components/LoginForm'
+import TrustSignals from './components/TrustSignals'
+import { 
+  signInWithProvider, 
+  resetPassword,
+  selectIsAuthenticated,
+  selectIsLoginLoading 
+} from '../../store/slices/authSlice'
 
 const Login = () => {
-  const navigate = useNavigate();
-  const [showPassword, setShowPassword] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [rememberMe, setRememberMe] = useState(false);
+  const navigate = useNavigate()
+  const dispatch = useDispatch()
+  
+  // Redux state
+  const isAuthenticated = useSelector(selectIsAuthenticated)
+  const isLoading = useSelector(selectIsLoginLoading)
+  
+  // Local state for forgot password modal
+  const [showForgotPassword, setShowForgotPassword] = useState(false)
+  const [forgotPasswordEmail, setForgotPasswordEmail] = useState('')
+  const [forgotPasswordLoading, setForgotPasswordLoading] = useState(false)
+  const [forgotPasswordSuccess, setForgotPasswordSuccess] = useState(false)
+  const [forgotPasswordError, setForgotPasswordError] = useState('')
 
-  const [formData, setFormData] = useState({
-    email: '',
-    password: ''
-  });
-
-  const [errors, setErrors] = useState({});
-
-  const validateEmail = (email) => {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(email);
-  };
-
-  const validateForm = () => {
-    const newErrors = {};
-
-    if (!formData.email) {
-      newErrors.email = 'Email is required';
-    } else if (!validateEmail(formData.email)) {
-      newErrors.email = 'Please enter a valid email address';
+  // Redirect if already authenticated
+  useEffect(() => {
+    if (isAuthenticated) {
+      navigate('/dashboard')
     }
+  }, [isAuthenticated, navigate])
 
-    if (!formData.password) {
-      newErrors.password = 'Password is required';
-    } else if (formData.password.length < 6) {
-      newErrors.password = 'Password must be at least 6 characters';
-    }
-
-    return newErrors;
-  };
-
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
-    
-    // Clear error when user starts typing
-    if (errors[name]) {
-      setErrors(prev => ({
-        ...prev,
-        [name]: ''
-      }));
-    }
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    
-    const formErrors = validateForm();
-    if (Object.keys(formErrors).length > 0) {
-      setErrors(formErrors);
-      return;
-    }
-
-    setIsLoading(true);
-    setErrors({});
-
+  const handleSocialLogin = async (provider) => {
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      // Mock authentication check
-      if (formData.email === 'demo@rolevista.com' && formData.password === 'demo123') {
-        // Success - redirect to assessment results
-        navigate('/assessment-results');
-      } else {
-        // Invalid credentials
-        setErrors({
-          general: 'Invalid email or password. Try demo@rolevista.com / demo123'
-        });
+      const result = await dispatch(signInWithProvider(provider))
+      if (signInWithProvider.fulfilled.match(result)) {
+        // OAuth redirect will handle the rest
+        console.log('OAuth flow initiated for', provider)
       }
     } catch (error) {
-      setErrors({
-        general: 'Sign in failed. Please check your connection and try again.'
-      });
-    } finally {
-      setIsLoading(false);
+      console.error('Social login error:', error)
     }
-  };
+  }
 
   const handleForgotPassword = () => {
-    navigate('/forgot-password');
-  };
+    setShowForgotPassword(true)
+    setForgotPasswordSuccess(false)
+    setForgotPasswordError('')
+  }
 
-  const handleSocialLogin = (provider) => {
-    setIsLoading(true);
+  const handleForgotPasswordSubmit = async (e) => {
+    e.preventDefault()
     
-    // TODO: Implement actual social login integration
-    // Simulate social login for now
-    setTimeout(() => {
-      setIsLoading(false);
-      navigate('/assessment-results');
-    }, 1500);
-  };
+    if (!forgotPasswordEmail.trim()) {
+      setForgotPasswordError('Email is required')
+      return
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(forgotPasswordEmail)) {
+      setForgotPasswordError('Please enter a valid email address')
+      return
+    }
+
+    setForgotPasswordLoading(true)
+    setForgotPasswordError('')
+
+    try {
+      const result = await dispatch(resetPassword(forgotPasswordEmail))
+      if (resetPassword.fulfilled.match(result)) {
+        setForgotPasswordSuccess(true)
+        setTimeout(() => {
+          setShowForgotPassword(false)
+          setForgotPasswordSuccess(false)
+          setForgotPasswordEmail('')
+        }, 3000)
+      } else {
+        setForgotPasswordError(result.payload || 'Failed to send reset email')
+      }
+    } catch (error) {
+      setForgotPasswordError('Failed to send reset email')
+    } finally {
+      setForgotPasswordLoading(false)
+    }
+  }
+
+  const closeForgotPasswordModal = () => {
+    setShowForgotPassword(false)
+    setForgotPasswordEmail('')
+    setForgotPasswordError('')
+    setForgotPasswordSuccess(false)
+  }
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="w-full border-b border-border bg-background">
-        <div className="container mx-auto px-4 h-16 flex items-center justify-between">
-          <Link to="/" className="flex items-center space-x-2">
-            <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-sm">R</span>
+    <div className="min-h-screen bg-gray-50">
+      <div className="flex min-h-screen">
+        {/* Background/Hero Section - Left Side */}
+        <LoginBackground />
+
+        {/* Login Form Section - Right Side */}
+        <div className="flex-1 flex items-center justify-center px-4 sm:px-6 lg:px-8">
+          <div className="w-full max-w-md space-y-8">
+            <LoginForm 
+              onSocialLogin={handleSocialLogin}
+              onForgotPassword={handleForgotPassword}
+            />
+            
+            {/* Trust Signals */}
+            <div className="mt-8">
+              <TrustSignals />
             </div>
-            <span className="font-semibold text-lg">RoleVista</span>
-          </Link>
-          
-          <div className="text-sm text-muted-foreground">
-            Need an account?{' '}
-            <Link 
-              to="/user-registration-login" 
-              className="text-primary hover:underline font-medium"
-            >
-              Sign up free
-            </Link>
           </div>
         </div>
-      </header>
+      </div>
 
-      <main className="container mx-auto px-4 py-8 flex-1">
-        <div className="max-w-lg mx-auto">
-          {/* Welcome Section */}
-          <div className="text-center space-y-4 mb-8">
-            <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto">
-              <Shield className="w-8 h-8 text-primary" />
+      {/* Forgot Password Modal */}
+      {showForgotPassword && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-medium text-gray-900">Reset Password</h3>
+              <button
+                onClick={closeForgotPasswordModal}
+                className="text-gray-400 hover:text-gray-600"
+                disabled={forgotPasswordLoading}
+              >
+                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
             </div>
-            
-            <div>
-              <h1 className="text-2xl md:text-3xl font-bold text-foreground mb-2">
-                Welcome Back
-              </h1>
-              <p className="text-muted-foreground">
-                Sign in to continue your career journey and access your personalized insights.
-              </p>
-            </div>
 
-            {/* Demo Credentials */}
-            <div className="bg-muted/30 border border-border rounded-lg p-4">
-              <div className="flex items-center space-x-2 mb-2">
-                <CheckCircle className="w-4 h-4 text-primary" />
-                <span className="text-sm font-medium text-foreground">Try Demo Account</span>
+            {forgotPasswordSuccess ? (
+              <div className="text-center">
+                <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-green-100 mb-4">
+                  <svg className="h-6 w-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                </div>
+                <h4 className="text-lg font-medium text-gray-900 mb-2">Email Sent!</h4>
+                <p className="text-sm text-gray-600">
+                  We've sent a password reset link to <strong>{forgotPasswordEmail}</strong>. 
+                  Please check your email and follow the instructions to reset your password.
+                </p>
               </div>
-              <div className="text-xs text-muted-foreground space-y-1">
-                <div>Email: <code className="bg-muted px-1 rounded">demo@rolevista.com</code></div>
-                <div>Password: <code className="bg-muted px-1 rounded">demo123</code></div>
-              </div>
-            </div>
-          </div>
-
-          {/* Login Form */}
-          <div className="bg-card border border-border rounded-lg shadow-sm p-6 space-y-6">
-            {/* Error Message */}
-            {errors.general && (
-              <div className="bg-destructive/10 border border-destructive/20 rounded-md p-3">
-                <p className="text-sm text-destructive">{errors.general}</p>
-              </div>
-            )}
-
-            <form onSubmit={handleSubmit} className="space-y-5">
-              <Input
-                type="email"
-                name="email"
-                label="Email Address"
-                placeholder="Enter your email"
-                value={formData.email}
-                onChange={handleInputChange}
-                error={errors.email}
-                required
-                className="h-12"
-              />
-
-              <div className="space-y-2">
-                <div className="relative">
-                  <Input
-                    type={showPassword ? "text" : "password"}
-                    name="password"
-                    label="Password"
-                    placeholder="Enter your password"
-                    value={formData.password}
-                    onChange={handleInputChange}
-                    error={errors.password}
-                    required
-                    className="h-12 pr-12"
+            ) : (
+              <form onSubmit={handleForgotPasswordSubmit}>
+                <div className="mb-4">
+                  <p className="text-sm text-gray-600 mb-4">
+                    Enter your email address and we'll send you a link to reset your password.
+                  </p>
+                  
+                  <label htmlFor="forgot-email" className="block text-sm font-medium text-gray-700 mb-2">
+                    Email Address
+                  </label>
+                  <input
+                    id="forgot-email"
+                    type="email"
+                    value={forgotPasswordEmail}
+                    onChange={(e) => setForgotPasswordEmail(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                    placeholder="Enter your email"
+                    disabled={forgotPasswordLoading}
                   />
+                  
+                  {forgotPasswordError && (
+                    <p className="mt-2 text-sm text-red-600">{forgotPasswordError}</p>
+                  )}
+                </div>
+
+                <div className="flex space-x-3">
                   <button
                     type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-9 text-muted-foreground hover:text-foreground transition-colors"
+                    onClick={closeForgotPasswordModal}
+                    className="flex-1 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:cursor-not-allowed"
+                    disabled={forgotPasswordLoading}
                   >
-                    {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="flex-1 px-4 py-2 text-sm font-medium text-white bg-indigo-600 border border-transparent rounded-md shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:cursor-not-allowed disabled:opacity-50 flex items-center justify-center"
+                    disabled={forgotPasswordLoading}
+                  >
+                    {forgotPasswordLoading ? (
+                      <>
+                        <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Sending...
+                      </>
+                    ) : (
+                      'Send Reset Link'
+                    )}
                   </button>
                 </div>
-              </div>
-
-              <div className="flex items-center justify-between">
-                <Checkbox
-                  checked={rememberMe}
-                  onChange={(e) => setRememberMe(e.target.checked)}
-                  label="Keep me signed in"
-                />
-                
-                <button
-                  type="button"
-                  onClick={handleForgotPassword}
-                  className="text-sm text-primary hover:underline font-medium"
-                >
-                  Forgot password?
-                </button>
-              </div>
-
-              <Button
-                type="submit"
-                className="w-full h-12"
-                loading={isLoading}
-                disabled={isLoading}
-              >
-                {isLoading ? 'Signing in...' : 'Sign In'}
-                {!isLoading && <ArrowRight className="w-4 h-4 ml-2" />}
-              </Button>
-            </form>
-
-            {/* Social Login */}
-            <SocialLogin 
-              onSocialLogin={handleSocialLogin}
-              isLoading={isLoading}
-            />
+              </form>
+            )}
           </div>
-
-          {/* Additional Options */}
-          <div className="text-center mt-6 space-y-4">
-            <div className="text-sm text-muted-foreground">
-              New to RoleVista?{' '}
-              <Link 
-                to="/user-registration-login" 
-                className="text-primary hover:underline font-medium"
-              >
-                Create your free account
-              </Link>
-            </div>
-            
-            <div className="text-xs text-muted-foreground">
-              Take your free career assessment and discover your ideal career path in minutes.
-            </div>
-          </div>
-
-          {/* Trust Signals */}
-          <TrustSignals />
         </div>
-      </main>
+      )}
     </div>
-  );
-};
+  )
+}
 
-export default Login;
+export default Login

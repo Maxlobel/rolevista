@@ -1,185 +1,77 @@
-# 🚀 Deployment Guide
+# RoleVista Deployment Guide
 
-## 🌐 **Deployment Architecture**
+## 🚀 Deploy to Vercel
 
-- **Frontend**: Vercel (React app)
-- **Backend**: Railway (Node.js + SQLite)
-- **Database**: SQLite (persistent on Railway)
+### Prerequisites
+- GitHub account
+- Vercel account (sign up at [vercel.com](https://vercel.com))
+- Supabase project set up
 
-## 📋 **Prerequisites**
+### Step 1: Push to GitHub
 
-1. GitHub account with your code pushed
-2. Vercel account ([vercel.com](https://vercel.com))
-3. Railway account ([railway.app](https://railway.app))
-
-## 🎯 **Step 1: Deploy Backend to Railway**
-
-### **1.1 Create Railway Project**
-1. Go to [railway.app](https://railway.app)
-2. Click "Start a New Project"
-3. Choose "Deploy from GitHub repo"
-4. Select your `rolevista` repository
-5. Choose "Deploy from the repo root"
-
-### **1.2 Configure Environment Variables**
-In Railway dashboard → Variables tab:
 ```bash
-# Required Variables
-JWT_SECRET=your-super-secure-256-bit-random-string-here
-NODE_ENV=production
-PORT=5000
+# Initialize git (if not already done)
+git init
+git add .
+git commit -m "Initial commit - RoleVista with Supabase integration"
 
-# Optional Variables  
-BCRYPT_SALT_ROUNDS=12
-RATE_LIMIT_WINDOW_MS=900000
-RATE_LIMIT_MAX_REQUESTS=100
+# Add your GitHub repository
+git remote add origin https://github.com/yourusername/rolevista.git
+git branch -M main
+git push -u origin main
 ```
 
-### **1.3 Set Build Configuration**
-Railway should auto-detect Node.js. If needed, configure:
-- **Build Command**: `cd backend && npm install`
-- **Start Command**: `cd backend && npm start`
-- **Root Directory**: `/` (repo root)
+### Step 2: Connect to Vercel
 
-### **1.4 Get Backend URL**
-After deployment, Railway will provide a URL like:
-`https://your-project-name.up.railway.app`
+1. Go to [vercel.com](https://vercel.com) and sign in
+2. Click "Add New..." → "Project"
+3. Import your GitHub repository
+4. Vercel will auto-detect it's a Vite project
 
-**⚠️ Important**: Copy this URL - you'll need it for frontend deployment!
+### Step 3: Configure Environment Variables
 
-## 🎨 **Step 2: Deploy Frontend to Vercel**
+In Vercel dashboard, go to your project → Settings → Environment Variables and add:
 
-### **2.1 Deploy via GitHub**
-1. Go to [vercel.com](https://vercel.com)
-2. Click "New Project"
-3. Import your `rolevista` repository
-4. Configure project:
-   - **Framework Preset**: Other
-   - **Root Directory**: `./` (repo root)
-   - **Build Command**: `npm run build`
-   - **Output Directory**: `build`
+| Name | Value | Environment |
+|------|-------|-------------|
+| `VITE_SUPABASE_URL` | `https://obvqbytibrbfrgibkioa.supabase.co` | Production, Preview, Development |
+| `VITE_SUPABASE_ANON_KEY` | `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9idnFieXRpYnJiZnJnaWJraW9hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQ0MDU4MzAsImV4cCI6MjA2OTk4MTgzMH0.Ihej-lawfC7vukT-ewBP_ljSRs7oY4VzC_MPqrb98iU` | Production, Preview, Development |
 
-### **2.2 Set Environment Variables**
-In Vercel dashboard → Settings → Environment Variables:
-```bash
-# Replace with your Railway backend URL
-VITE_API_URL=https://your-project-name.up.railway.app/api
-REACT_APP_API_URL=https://your-project-name.up.railway.app/api
-```
+### Step 4: Deploy
 
-### **2.3 Deploy**
-Click "Deploy" - Vercel will build and deploy your frontend!
+1. Click "Deploy"
+2. Vercel will build and deploy your app
+3. You'll get a live URL like: `https://rolevista-xyz.vercel.app`
 
-## 🔗 **Step 3: Connect Frontend to Backend**
+### Step 5: Update Supabase Settings
 
-### **3.1 Update Backend CORS**
-Update your backend's `server.js` file:
-```javascript
-const allowedOrigins = [
-  process.env.FRONTEND_URL || 'http://localhost:4028',
-  'http://localhost:4028',
-  'https://your-vercel-app.vercel.app', // Add your Vercel URL here
-];
-```
+In your Supabase project:
 
-### **3.2 Redeploy Backend**
-Push changes to GitHub → Railway will auto-redeploy
+1. Go to Authentication → Settings
+2. Update **Site URL** to your Vercel URL: `https://rolevista-xyz.vercel.app`
+3. Add **Redirect URLs**: `https://rolevista-xyz.vercel.app/**`
 
-## ✅ **Step 4: Test Your Deployment**
+## 🔧 Local Development
 
-### **Backend Health Check**
-```bash
-curl https://your-project-name.up.railway.app/health
-```
-Should return: `{"status":"OK","timestamp":"...","service":"RoleVista Backend API"}`
+1. Copy `.env.example` to `.env`
+2. Add your Supabase credentials
+3. Run `npm run dev`
 
-### **Frontend Test**
-1. Visit your Vercel URL: `https://your-app.vercel.app`
-2. Try registering a new user
-3. Take the career assessment
-4. Verify data is being saved
+## 📊 Database Schema
 
-## 🔧 **Custom Domain Setup (Optional)**
+Make sure you've run the SQL schema in your Supabase project:
 
-### **Frontend Domain**
-1. Vercel Dashboard → Settings → Domains
-2. Add your custom domain
-3. Update DNS settings as instructed
+1. Go to Supabase Dashboard → SQL Editor
+2. Run the schema provided in the migration guide
+3. This creates all necessary tables and security policies
 
-### **Backend Domain**
-1. Railway Dashboard → Settings → Domains
-2. Add custom domain
-3. Update frontend environment variables
+## 🔒 Security Notes
 
-## 🔄 **Continuous Deployment**
+- ✅ Environment variables are properly configured
+- ✅ Supabase keys are not exposed in code
+- ✅ Row-level security (RLS) is enabled
+- ✅ Only authenticated users can access their own data
 
-Both platforms support automatic deployment:
-- **Push to `main` branch** → Auto-deploy both frontend and backend
-- **Environment variables** persist across deployments
-- **Database data** persists on Railway
+## 🚨 Important
 
-## 📊 **Monitor Your Deployment**
-
-### **Railway Monitoring**
-- View logs in Railway dashboard
-- Monitor CPU/Memory usage
-- Check database size
-
-### **Vercel Analytics**
-- View deployment logs
-- Monitor build times
-- Check performance metrics
-
-## 🚨 **Troubleshooting**
-
-### **Common Issues**
-
-1. **CORS Errors**
-   - Ensure frontend URL is in backend's allowed origins
-   - Check environment variables are set correctly
-
-2. **Database Connection**
-   - Railway automatically handles SQLite file persistence
-   - Check backend logs for database initialization
-
-3. **Environment Variables**
-   - Verify all required variables are set
-   - JWT_SECRET must be a secure random string
-
-4. **Build Failures**
-   - Check Node.js version compatibility
-   - Verify all dependencies are in package.json
-
-### **Debug Commands**
-```bash
-# Check backend status
-curl https://your-backend.up.railway.app/health
-
-# View Railway logs
-railway logs
-
-# Test API endpoints
-curl -X POST https://your-backend.up.railway.app/api/auth/register \
-  -H "Content-Type: application/json" \
-  -d '{"firstName":"Test","lastName":"User","email":"test@example.com","password":"Password123","acceptTerms":true}'
-```
-
-## 🎉 **Success!**
-
-Your RoleVista platform is now live!
-
-- **Frontend**: `https://your-app.vercel.app`
-- **Backend**: `https://your-backend.up.railway.app`
-- **Database**: Automatically managed on Railway
-
-## 📈 **Next Steps**
-
-1. **Set up monitoring** (error tracking, uptime monitoring)
-2. **Configure backups** for your database
-3. **Add analytics** to track user engagement
-4. **Set up custom domains** for professional URLs
-5. **Enable HTTPS** everywhere (automatic on both platforms)
-
----
-
-🎯 **Your career assessment platform is now ready to help users discover their ideal careers!** 
+Never commit `.env` files to GitHub - they're already in `.gitignore` for security. 

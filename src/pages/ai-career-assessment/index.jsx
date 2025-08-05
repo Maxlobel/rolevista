@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useSelector } from 'react-redux';
 import { Helmet } from 'react-helmet';
 import ProgressBar from './components/ProgressBar';
 import QuestionCard from './components/QuestionCard';
@@ -10,19 +11,68 @@ import ExitConfirmationModal from './components/ExitConfirmationModal';
 import AssessmentHeader from './components/AssessmentHeader';
 import UserProfileSetup from './components/UserProfileSetup';
 import AdaptiveAssessmentEngine from './components/AdaptiveAssessmentEngine';
+import { userService } from '../../services/userService';
 
 const AICareerAssessment = () => {
   const navigate = useNavigate();
+  const { user, isAuthenticated } = useSelector((state) => state.auth);
+  
   const [profileComplete, setProfileComplete] = useState(false);
   const [userProfile, setUserProfile] = useState(null);
   const [currentQuestion, setCurrentQuestion] = useState(null);
   const [answers, setAnswers] = useState({});
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [showExitModal, setShowExitModal] = useState(false);
   const [assessmentStartTime] = useState(new Date());
   const [assessmentEngine] = useState(new AdaptiveAssessmentEngine());
   const [questionHistory, setQuestionHistory] = useState([]);
   const [isAssessmentComplete, setIsAssessmentComplete] = useState(false);
+
+  // Auto-load user profile on component mount
+  useEffect(() => {
+    const loadUserProfile = async () => {
+      if (!isAuthenticated || !user) {
+        // Redirect to login if not authenticated
+        navigate('/auth');
+        return;
+      }
+
+      try {
+        // Try to get existing user profile
+        const profileResult = await userService.getUserProfile();
+        
+        if (profileResult.success && profileResult.data) {
+          const profile = profileResult.data;
+          
+          // Auto-populate profile if we have the user's name
+          if (profile.firstName && profile.lastName) {
+            const autoProfile = {
+              fullName: `${profile.firstName} ${profile.lastName}`,
+              email: profile.email,
+              phone: profile.phone || '',
+              location: profile.location || '',
+              // Add any other profile data we have
+            };
+            
+            console.log('🎯 Auto-populated profile from registration:', autoProfile);
+            setUserProfile(autoProfile);
+            setProfileComplete(true);
+            setIsLoading(false);
+            return;
+          }
+        }
+        
+        // If we don't have profile data, show the setup form
+        setIsLoading(false);
+        
+      } catch (error) {
+        console.error('Error loading user profile:', error);
+        setIsLoading(false);
+      }
+    };
+
+    loadUserProfile();
+  }, [isAuthenticated, user, navigate]);
 
   // Initialize the first question when profile is complete
   useEffect(() => {
@@ -49,9 +99,6 @@ const AICareerAssessment = () => {
   const handleProfileComplete = (profile) => {
     setUserProfile(profile);
     setProfileComplete(true);
-    
-    // Store profile in localStorage
-    localStorage.setItem('userProfile', JSON.stringify(profile));
   };
 
   const handleAnswer = (answer) => {
@@ -172,6 +219,15 @@ const AICareerAssessment = () => {
   };
 
   // Loading state
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <LoadingSpinner />
+      </div>
+    );
+  }
+
+  // Show profile setup if not complete
   if (!profileComplete) {
     return (
       <div className="min-h-screen bg-background">

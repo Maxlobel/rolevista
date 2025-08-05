@@ -1,186 +1,264 @@
-import { supabase, isSupabaseConfigured } from '../lib/supabase'
-import { matchCareersToAnswers, generateSkillsAnalysis } from '../utils/careerMatcher'
-import { authService } from './auth'
+import { supabase, handleSupabaseError, getCurrentUser } from '../lib/supabase'
 
-// Assessment Service for Supabase
-export const assessmentService = {
-
-  // Start a new assessment session
-  async startAssessment(totalQuestions = 15) {
+/**
+ * Assessment service using Supabase database
+ * Replaces the previous Express.js backend assessment functionality
+ */
+class AssessmentService {
+  /**
+   * Start a new assessment session
+   */
+  async startAssessment({ totalQuestions = 15 }) {
     try {
-      // Check if Supabase is configured
-      if (!isSupabaseConfigured()) {
-        return { session: null, error: 'Supabase not configured. Using demo mode.' }
+      const user = await getCurrentUser()
+      if (!user) {
+        throw new Error('User must be authenticated to start assessment')
       }
 
-      const { user } = await authService.getCurrentUser()
-      if (!user) throw new Error('User not authenticated')
-
+      // Create assessment session
       const { data, error } = await supabase
         .from('assessment_sessions')
-        .insert([{
+        .insert({
           user_id: user.id,
           total_questions: totalQuestions,
           session_status: 'in_progress',
-          user_agent: navigator.userAgent,
-          started_at: new Date().toISOString()
-        }])
+          user_agent: navigator.userAgent
+        })
         .select()
+        .single()
 
       if (error) throw error
 
-      // Track assessment start activity
-      await authService.trackActivity(user.id, 'assessment_start', 'User started career assessment', {
-        session_id: data[0].id,
-        total_questions: totalQuestions
+      // Log activity
+      await this.logActivity({
+        userId: user.id,
+        activityType: 'assessment_started',
+        description: 'Started new career assessment',
+        metadata: { sessionId: data.id, totalQuestions }
       })
 
-      return { session: data[0], error: null }
+      return {
+        success: true,
+        data: {
+          sessionId: data.id,
+          totalQuestions,
+          startedAt: data.started_at
+        }
+      }
     } catch (error) {
       console.error('Start assessment error:', error)
-      return { session: null, error: error.message }
+      return {
+        success: false,
+        error: handleSupabaseError(error)
+      }
     }
-  },
+  }
 
-  // Get current assessment session
-  async getCurrentSession(userId) {
+  /**
+   * Save an assessment answer
+   */
+  async saveAnswer({
+    sessionId,
+    questionId,
+    questionText,
+    questionType,
+    selectedOption,
+    optionLabel,
+    optionDescription = null,
+    answerOrder = null,
+    timeSpentSeconds = null
+  }) {
     try {
-      const { data, error } = await supabase
+      const user = await getCurrentUser()
+      if (!user) {
+        throw new Error('User must be authenticated to save answers')
+      }
+
+      // Verify session belongs to user and get session details
+      const { data: session, error: sessionError } = await supabase
         .from('assessment_sessions')
         .select('*')
-        .eq('user_id', userId)
-        .eq('session_status', 'in_progress')
-        .order('started_at', { ascending: false })
-        .limit(1)
+        .eq('id', sessionId)
+        .eq('user_id', user.id)
+        .single()
 
-      if (error) throw error
-      return { session: data[0] || null, error: null }
-    } catch (error) {
-      console.error('Get current session error:', error)
-      return { session: null, error: error.message }
-    }
-  },
-
-  // Save an assessment answer
-  async saveAnswer(sessionId, questionData, answerData, timeSpent = 0) {
-    try {
-      const { user } = await authService.getCurrentUser()
-      if (!user) throw new Error('User not authenticated')
+      if (sessionError || !session) {
+        throw new Error('Assessment session not found or access denied')
+      }
 
       // Save the answer
-      const { data: answerResult, error: answerError } = await supabase
+      const { error: answerError } = await supabase
         .from('assessment_answers')
-        .insert([{
+        .insert({
           session_id: sessionId,
           user_id: user.id,
-          question_id: questionData.id,
-          question_text: questionData.text,
-          question_type: questionData.type,
-          selected_option: answerData.value,
-          option_label: answerData.label,
-          option_description: answerData.description || '',
-          time_spent_seconds: timeSpent,
-          answered_at: new Date().toISOString()
-        }])
-        .select()
+          question_id: questionId,
+          question_text: questionText,
+          question_type: questionType,
+          selected_option: selectedOption,
+          option_label: optionLabel,
+          option_description: optionDescription,
+          answer_order: answerOrder,
+          time_spent_seconds: timeSpentSeconds
+        })
 
       if (answerError) throw answerError
 
+      // Get current answer count to update progress
+      const { data: answers, error: answersError } = await supabase
+        .from('assessment_answers')
+        .select('id')
+        .eq('session_id', sessionId)
+
+      if (answersError) throw answersError
+
+      const answeredQuestions = answers.length
+      const completionPercentage = Math.round((answeredQuestions / session.total_questions) * 100)
+
       // Update session progress
-      const { data: sessionData, error: sessionError } = await supabase
-        .from('assessment_sessions')
-        .select('answered_questions, total_questions')
-        .eq('id', sessionId)
-        .single()
-
-      if (sessionError) throw sessionError
-
-      const newAnsweredCount = (sessionData.answered_questions || 0) + 1
-      const completionPercentage = Math.round((newAnsweredCount / sessionData.total_questions) * 100)
-
       const { error: updateError } = await supabase
         .from('assessment_sessions')
         .update({
-          answered_questions: newAnsweredCount,
+          answered_questions: answeredQuestions,
           completion_percentage: completionPercentage
         })
         .eq('id', sessionId)
 
       if (updateError) throw updateError
 
-      return { 
-        answer: answerResult[0], 
-        progress: { 
-          answered: newAnsweredCount, 
-          total: sessionData.total_questions,
-          completion_percentage: completionPercentage 
-        }, 
-        error: null 
+      // Log activity
+      await this.logActivity({
+        userId: user.id,
+        activityType: 'assessment_answer_saved',
+        description: `Answered question ${questionId}`,
+        metadata: {
+          sessionId,
+          questionId,
+          questionType,
+          completionPercentage
+        }
+      })
+
+      return {
+        success: true,
+        data: {
+          answeredQuestions,
+          totalQuestions: session.total_questions,
+          completionPercentage,
+          isComplete: completionPercentage === 100
+        }
       }
     } catch (error) {
       console.error('Save answer error:', error)
-      return { answer: null, progress: null, error: error.message }
+      return {
+        success: false,
+        error: handleSupabaseError(error)
+      }
     }
-  },
+  }
 
-  // Complete assessment and generate results
-  async completeAssessment(sessionId) {
+  /**
+   * Get assessment progress
+   */
+  async getProgress(sessionId) {
     try {
-      const { user } = await authService.getCurrentUser()
-      if (!user) throw new Error('User not authenticated')
+      const user = await getCurrentUser()
+      if (!user) {
+        throw new Error('User must be authenticated to get progress')
+      }
+
+      // Get session details
+      const { data: session, error: sessionError } = await supabase
+        .from('assessment_sessions')
+        .select('*')
+        .eq('id', sessionId)
+        .eq('user_id', user.id)
+        .single()
+
+      if (sessionError || !session) {
+        throw new Error('Assessment session not found or access denied')
+      }
 
       // Get all answers for this session
       const { data: answers, error: answersError } = await supabase
         .from('assessment_answers')
-        .select('question_id, selected_option, option_label, option_description')
+        .select('*')
         .eq('session_id', sessionId)
-        .order('answered_at')
+        .order('answered_at', { ascending: true })
 
       if (answersError) throw answersError
 
-      // Convert answers to format expected by career matcher
-      const answersMap = {}
-      answers.forEach(answer => {
-        answersMap[answer.question_id] = answer.selected_option
-      })
-
-      // Generate career recommendations using our matching engine
-      const careerMatches = matchCareersToAnswers(answersMap)
-      const skillsAnalysis = generateSkillsAnalysis(answersMap)
-
-      // Calculate overall score (average of top 3 career matches)
-      const overallScore = careerMatches.length > 0 
-        ? Math.round(careerMatches.slice(0, 3).reduce((sum, match) => sum + match.fitScore, 0) / Math.min(3, careerMatches.length))
-        : 0
-
-      // Determine career archetype based on top match
-      const careerArchetype = careerMatches.length > 0 ? careerMatches[0].title : 'Exploring'
-
-      // Save assessment results
-      const { data: results, error: resultsError } = await supabase
-        .from('assessment_results')
-        .insert([{
-          session_id: sessionId,
-          user_id: user.id,
-          overall_score: overallScore,
-          career_archetype: careerArchetype,
-          top_career_matches: careerMatches,
-          skills_analysis: skillsAnalysis,
-          career_recommendations: {
-            primary_matches: careerMatches.slice(0, 3),
-            skills_to_develop: skillsAnalysis.developing,
-            recommended_actions: this.generateRecommendedActions(careerMatches, skillsAnalysis)
+      return {
+        success: true,
+        data: {
+          session: {
+            id: session.id,
+            status: session.session_status,
+            startedAt: session.started_at,
+            totalQuestions: session.total_questions,
+            answeredQuestions: session.answered_questions || 0,
+            completionPercentage: session.completion_percentage || 0
           },
-          generated_at: new Date().toISOString()
-        }])
-        .select()
+          answers: answers.map(answer => ({
+            questionId: answer.question_id,
+            questionText: answer.question_text,
+            questionType: answer.question_type,
+            selectedOption: answer.selected_option,
+            optionLabel: answer.option_label,
+            optionDescription: answer.option_description,
+            answeredAt: answer.answered_at,
+            timeSpentSeconds: answer.time_spent_seconds
+          }))
+        }
+      }
+    } catch (error) {
+      console.error('Get progress error:', error)
+      return {
+        success: false,
+        error: handleSupabaseError(error)
+      }
+    }
+  }
 
-      if (resultsError) throw resultsError
+  /**
+   * Complete assessment and generate results
+   */
+  async completeAssessment(sessionId, additionalData = {}) {
+    try {
+      const user = await getCurrentUser()
+      if (!user) {
+        throw new Error('User must be authenticated to complete assessment')
+      }
+
+      // Get session and answers
+      const { data: session, error: sessionError } = await supabase
+        .from('assessment_sessions')
+        .select('*')
+        .eq('id', sessionId)
+        .eq('user_id', user.id)
+        .single()
+
+      if (sessionError || !session) {
+        throw new Error('Assessment session not found or access denied')
+      }
+
+      const { data: answers, error: answersError } = await supabase
+        .from('assessment_answers')
+        .select('*')
+        .eq('session_id', sessionId)
+        .order('answered_at', { ascending: true })
+
+      if (answersError) throw answersError
+
+      // Generate assessment results
+      const results = this.generateResults(answers)
+
+      // Calculate session duration
+      const startTime = new Date(session.started_at).getTime()
+      const endTime = Date.now()
+      const durationMinutes = Math.round((endTime - startTime) / (1000 * 60))
 
       // Update session as completed
-      const startTime = await this.getSessionStartTime(sessionId)
-      const durationMinutes = startTime ? Math.round((new Date() - new Date(startTime)) / 60000) : 0
-
       const { error: sessionUpdateError } = await supabase
         .from('assessment_sessions')
         .update({
@@ -193,31 +271,127 @@ export const assessmentService = {
 
       if (sessionUpdateError) throw sessionUpdateError
 
-      // Track assessment completion activity
-      await authService.trackActivity(user.id, 'assessment_complete', 'User completed career assessment', {
-        session_id: sessionId,
-        overall_score: overallScore,
-        career_archetype: careerArchetype,
-        duration_minutes: durationMinutes,
-        top_matches: careerMatches.slice(0, 3).map(match => match.title)
+      // Save assessment results
+      const { data: savedResults, error: resultsError } = await supabase
+        .from('assessment_results')
+        .insert({
+          session_id: sessionId,
+          user_id: user.id,
+          overall_score: results.overallScore,
+          career_archetype: results.careerArchetype,
+          top_career_matches: results.recommendedRoles,
+          skills_analysis: results.topSkills,
+          personality_traits: results.personalityProfile,
+          career_recommendations: results.recommendedRoles,
+          strengths_analysis: results.strengthsAnalysis,
+          improvement_areas: results.improvementAreas || [],
+          detailed_analysis: results.detailedInsights || {}
+        })
+        .select()
+        .single()
+
+      if (resultsError) throw resultsError
+
+      // Log completion
+      await this.logActivity({
+        userId: user.id,
+        activityType: 'assessment_completed',
+        description: 'Completed career assessment',
+        metadata: {
+          sessionId,
+          totalAnswers: answers.length,
+          overallScore: results.overallScore,
+          durationMinutes
+        }
       })
 
-      return { 
-        results: results[0], 
-        careerMatches, 
-        skillsAnalysis, 
-        error: null 
+      return {
+        success: true,
+        data: {
+          sessionId,
+          completedAt: new Date().toISOString(),
+          durationMinutes,
+          results: {
+            ...results,
+            id: savedResults.id
+          }
+        }
       }
     } catch (error) {
       console.error('Complete assessment error:', error)
-      return { results: null, careerMatches: [], skillsAnalysis: null, error: error.message }
+      return {
+        success: false,
+        error: handleSupabaseError(error)
+      }
     }
-  },
+  }
 
-  // Get assessment results for a user
-  async getAssessmentResults(userId, sessionId = null) {
+  /**
+   * Get user's assessment history
+   */
+  async getAssessmentHistory() {
     try {
-      let query = supabase
+      const user = await getCurrentUser()
+      if (!user) {
+        throw new Error('User must be authenticated to get history')
+      }
+
+      const { data: sessions, error } = await supabase
+        .from('assessment_sessions')
+        .select(`
+          *,
+          assessment_results (*)
+        `)
+        .eq('user_id', user.id)
+        .order('started_at', { ascending: false })
+
+      if (error) throw error
+
+      const assessments = sessions.map(session => ({
+        id: session.id,
+        status: session.session_status,
+        startedAt: session.started_at,
+        completedAt: session.completed_at,
+        totalQuestions: session.total_questions,
+        answeredQuestions: session.answered_questions,
+        completionPercentage: session.completion_percentage,
+        durationMinutes: session.duration_minutes,
+        results: session.assessment_results?.[0] ? {
+          overallScore: session.assessment_results[0].overall_score,
+          careerArchetype: session.assessment_results[0].career_archetype,
+          topCareerMatches: session.assessment_results[0].top_career_matches
+        } : null
+      }))
+
+      return {
+        success: true,
+        data: {
+          assessments,
+          totalAssessments: assessments.length,
+          lastAssessment: assessments[0] || null,
+          completedAssessments: assessments.filter(a => a.status === 'completed').length
+        }
+      }
+    } catch (error) {
+      console.error('Get assessment history error:', error)
+      return {
+        success: false,
+        error: handleSupabaseError(error)
+      }
+    }
+  }
+
+  /**
+   * Get specific assessment results
+   */
+  async getAssessmentResults(sessionId) {
+    try {
+      const user = await getCurrentUser()
+      if (!user) {
+        throw new Error('User must be authenticated to get results')
+      }
+
+      const { data, error } = await supabase
         .from('assessment_results')
         .select(`
           *,
@@ -225,154 +399,184 @@ export const assessmentService = {
             started_at,
             completed_at,
             duration_minutes,
-            completion_percentage
+            total_questions,
+            answered_questions
           )
         `)
-        .eq('user_id', userId)
-
-      if (sessionId) {
-        query = query.eq('session_id', sessionId)
-      }
-
-      const { data, error } = await query
-        .order('generated_at', { ascending: false })
-        .limit(sessionId ? 1 : 10)
-
-      if (error) throw error
-
-      return { 
-        results: sessionId ? (data[0] || null) : data, 
-        error: null 
-      }
-    } catch (error) {
-      console.error('Get assessment results error:', error)
-      return { results: null, error: error.message }
-    }
-  },
-
-  // Get user's assessment history
-  async getAssessmentHistory(userId) {
-    try {
-      const { data, error } = await supabase
-        .from('assessment_sessions')
-        .select(`
-          *,
-          assessment_results (
-            overall_score,
-            career_archetype,
-            generated_at
-          )
-        `)
-        .eq('user_id', userId)
-        .order('started_at', { ascending: false })
-
-      if (error) throw error
-      return { history: data, error: null }
-    } catch (error) {
-      console.error('Get assessment history error:', error)
-      return { history: [], error: error.message }
-    }
-  },
-
-  // Get session answers
-  async getSessionAnswers(sessionId) {
-    try {
-      const { data, error } = await supabase
-        .from('assessment_answers')
-        .select('*')
         .eq('session_id', sessionId)
-        .order('answered_at')
-
-      if (error) throw error
-      return { answers: data, error: null }
-    } catch (error) {
-      console.error('Get session answers error:', error)
-      return { answers: [], error: error.message }
-    }
-  },
-
-  // Generate recommended actions based on results
-  generateRecommendedActions(careerMatches, skillsAnalysis) {
-    const actions = []
-
-    if (careerMatches.length > 0) {
-      const topMatch = careerMatches[0]
-      actions.push({
-        type: 'career_exploration',
-        title: `Explore ${topMatch.title} Opportunities`,
-        description: `Research job openings and requirements for ${topMatch.title} roles`,
-        priority: 'high'
-      })
-
-      actions.push({
-        type: 'networking',
-        title: 'Connect with Industry Professionals',
-        description: `Reach out to ${topMatch.title} professionals on LinkedIn`,
-        priority: 'medium'
-      })
-    }
-
-    if (skillsAnalysis?.developing?.length > 0) {
-      const topSkillGap = skillsAnalysis.developing[0]
-      actions.push({
-        type: 'skill_development',
-        title: `Improve ${topSkillGap.name}`,
-        description: `Focus on developing your ${topSkillGap.name} skills through courses or practice`,
-        priority: 'high'
-      })
-    }
-
-    actions.push({
-      type: 'profile_optimization',
-      title: 'Complete Your Profile',
-      description: 'Add more details to your profile for better job matching',
-      priority: 'medium'
-    })
-
-    return actions
-  },
-
-  // Helper function to get session start time
-  async getSessionStartTime(sessionId) {
-    try {
-      const { data, error } = await supabase
-        .from('assessment_sessions')
-        .select('started_at')
-        .eq('id', sessionId)
+        .eq('user_id', user.id)
         .single()
 
       if (error) throw error
-      return data.started_at
+
+      return {
+        success: true,
+        data: {
+          id: data.id,
+          sessionId: data.session_id,
+          overallScore: data.overall_score,
+          careerArchetype: data.career_archetype,
+          topCareerMatches: data.top_career_matches,
+          skillsAnalysis: data.skills_analysis,
+          personalityTraits: data.personality_traits,
+          careerRecommendations: data.career_recommendations,
+          strengthsAnalysis: data.strengths_analysis,
+          improvementAreas: data.improvement_areas,
+          detailedAnalysis: data.detailed_analysis,
+          generatedAt: data.generated_at,
+          session: {
+            startedAt: data.assessment_sessions.started_at,
+            completedAt: data.assessment_sessions.completed_at,
+            durationMinutes: data.assessment_sessions.duration_minutes,
+            totalQuestions: data.assessment_sessions.total_questions,
+            answeredQuestions: data.assessment_sessions.answered_questions
+          }
+        }
+      }
     } catch (error) {
-      console.error('Get session start time error:', error)
-      return null
+      console.error('Get assessment results error:', error)
+      return {
+        success: false,
+        error: handleSupabaseError(error)
+      }
     }
-  },
+  }
 
-  // Delete assessment session and related data
-  async deleteAssessmentSession(sessionId) {
+  /**
+   * Generate assessment results from answers
+   * This replicates the logic from the backend
+   */
+  generateResults(answers) {
+    // Basic scoring logic - this would be much more sophisticated in a real app
+    const skillCategories = {
+      technical: 0,
+      communication: 0,
+      leadership: 0,
+      creativity: 0,
+      analytical: 0
+    }
+
+    const personalityTraits = {
+      extroversion: 0,
+      openness: 0,
+      conscientiousness: 0,
+      agreeableness: 0,
+      neuroticism: 0
+    }
+
+    // Analyze answers to determine scores
+    answers.forEach(answer => {
+      // Simple scoring based on question types and answers
+      switch (answer.question_type) {
+        case 'rating':
+          if (answer.selected_option === 'advanced' || answer.selected_option === 'expert') {
+            skillCategories.technical += 2
+          }
+          break
+        case 'preference':
+          if (answer.selected_option === 'collaborative') {
+            personalityTraits.extroversion += 1
+            skillCategories.communication += 1
+          }
+          break
+        case 'behavioral':
+          if (answer.selected_option.includes('lead')) {
+            skillCategories.leadership += 2
+          }
+          break
+        case 'values':
+          if (answer.selected_option.includes('creative')) {
+            skillCategories.creativity += 1
+          }
+          break
+        case 'goals':
+          if (answer.selected_option.includes('analyze')) {
+            skillCategories.analytical += 1
+          }
+          break
+      }
+    })
+
+    // Calculate overall score
+    const totalSkillPoints = Object.values(skillCategories).reduce((sum, val) => sum + val, 0)
+    const overallScore = Math.min(100, Math.max(0, Math.round((totalSkillPoints / answers.length) * 20)))
+
+    // Determine career archetype based on highest skills
+    const topSkill = Object.entries(skillCategories).reduce((a, b) => 
+      skillCategories[a[0]] > skillCategories[b[0]] ? a : b
+    )[0]
+
+    const archetypes = {
+      technical: 'The Innovator',
+      communication: 'The Connector',
+      leadership: 'The Visionary',
+      creativity: 'The Creator',
+      analytical: 'The Strategist'
+    }
+
+    const rolesByArchetype = {
+      technical: ['Software Engineer', 'Data Scientist', 'DevOps Engineer', 'Technical Architect'],
+      communication: ['Product Manager', 'Marketing Manager', 'Sales Director', 'HR Business Partner'],
+      leadership: ['Team Lead', 'VP of Engineering', 'Director of Operations', 'Chief Technology Officer'],
+      creativity: ['UX Designer', 'Creative Director', 'Content Strategist', 'Brand Manager'],
+      analytical: ['Data Analyst', 'Business Analyst', 'Strategy Consultant', 'Financial Analyst']
+    }
+
+    return {
+      overallScore,
+      careerArchetype: archetypes[topSkill] || 'The Explorer',
+      topSkills: Object.entries(skillCategories)
+        .sort(([,a], [,b]) => b - a)
+        .slice(0, 3)
+        .map(([skill]) => skill),
+      recommendedRoles: rolesByArchetype[topSkill] || [
+        'Software Engineer',
+        'Product Manager',
+        'Data Analyst',
+        'UX Designer',
+        'Marketing Specialist'
+      ],
+      strengthsAnalysis: {
+        primary: topSkill,
+        secondary: Object.entries(skillCategories).sort(([,a], [,b]) => b - a)[1][0],
+        skillScores: skillCategories
+      },
+      personalityProfile: personalityTraits,
+      detailedInsights: {
+        workStyle: 'Collaborative and detail-oriented',
+        idealEnvironment: 'Dynamic team with growth opportunities',
+        developmentAreas: ['Public speaking', 'Strategic thinking']
+      },
+      improvementAreas: Object.entries(skillCategories)
+        .sort(([,a], [,b]) => a - b)
+        .slice(0, 2)
+        .map(([skill]) => skill)
+    }
+  }
+
+  /**
+   * Log user activity (helper method)
+   */
+  async logActivity({ userId, activityType, description, metadata = {} }) {
     try {
-      const { user } = await authService.getCurrentUser()
-      if (!user) throw new Error('User not authenticated')
-
-      // Delete in order due to foreign key constraints
-      await supabase.from('assessment_results').delete().eq('session_id', sessionId)
-      await supabase.from('assessment_answers').delete().eq('session_id', sessionId)
-      const { error } = await supabase.from('assessment_sessions').delete().eq('id', sessionId).eq('user_id', user.id)
+      const { error } = await supabase
+        .from('user_activities')
+        .insert({
+          user_id: userId,
+          activity_type: activityType,
+          activity_description: description,
+          metadata,
+          user_agent: navigator.userAgent
+        })
 
       if (error) throw error
-
-      // Track deletion activity
-      await authService.trackActivity(user.id, 'assessment_delete', 'User deleted assessment session', {
-        deleted_session_id: sessionId
-      })
-
-      return { error: null }
     } catch (error) {
-      console.error('Delete assessment session error:', error)
-      return { error: error.message }
+      // Don't throw error for activity logging failures
+      console.error('Log activity error:', error)
     }
   }
 }
 
+// Create and export singleton instance
+export const assessmentService = new AssessmentService()
 export default assessmentService 

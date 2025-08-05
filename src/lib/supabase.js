@@ -1,22 +1,72 @@
 import { createClient } from '@supabase/supabase-js'
 
-// Replace these with your actual Supabase project credentials
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'your_supabase_project_url'
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'your_supabase_anon_key'
+// Supabase configuration using environment variables
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+
+// Validate environment variables
+if (!supabaseUrl || !supabaseAnonKey) {
+  console.error('Missing Supabase environment variables. Please check your .env file.')
+  console.error('Required: VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY')
+}
 
 // Check if Supabase is properly configured
 export const isSupabaseConfigured = () => {
-  return supabaseUrl !== 'your_supabase_project_url' && 
-         supabaseAnonKey !== 'your_supabase_anon_key' &&
+  return supabaseUrl && 
+         supabaseAnonKey &&
          supabaseUrl.startsWith('https://') &&
          supabaseAnonKey.length > 50
 }
 
-// Create Supabase client (will work with placeholder values but won't make real requests)
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+// Create Supabase client
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    autoRefreshToken: true,
+    persistSession: true,
+    detectSessionInUrl: true
+  }
+})
+
+// Helper function to handle Supabase errors
+export const handleSupabaseError = (error) => {
+  console.error('Supabase error:', error)
+  
+  if (error?.message) {
+    return error.message
+  }
+  
+  return 'An unexpected error occurred'
+}
+
+// Helper function to get current user
+export const getCurrentUser = async () => {
+  try {
+    const { data: { user }, error } = await supabase.auth.getUser()
+    if (error) throw error
+    return user
+  } catch (error) {
+    console.error('Error getting current user:', error)
+    return null
+  }
+}
+
+// Helper function to get user session
+export const getUserSession = async () => {
+  try {
+    const { data: { session }, error } = await supabase.auth.getSession()
+    if (error) throw error
+    return session
+  } catch (error) {
+    console.error('Error getting user session:', error)
+    return null
+  }
+}
 
 // Database Tables Schema (SQL to run in Supabase SQL Editor):
 /*
+
+-- Enable UUID extension
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- Users table (extends Supabase auth.users)
 CREATE TABLE public.user_profiles (
@@ -35,6 +85,8 @@ CREATE TABLE public.user_profiles (
   profile_completion_percentage INTEGER DEFAULT 0,
   is_premium BOOLEAN DEFAULT FALSE,
   marketing_consent BOOLEAN DEFAULT FALSE,
+  profile_data JSONB DEFAULT '{}',
+  preferences JSONB DEFAULT '{}',
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -82,6 +134,9 @@ CREATE TABLE public.assessment_results (
   skills_analysis JSONB,
   personality_traits JSONB,
   career_recommendations JSONB,
+  strengths_analysis JSONB,
+  improvement_areas JSONB,
+  detailed_analysis JSONB,
   generated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
@@ -91,7 +146,7 @@ CREATE TABLE public.user_activities (
   user_id UUID REFERENCES auth.users(id) NOT NULL,
   activity_type VARCHAR(50) NOT NULL, -- 'login', 'assessment_start', 'assessment_complete', 'profile_update', etc.
   activity_description TEXT,
-  metadata JSONB,
+  metadata JSONB DEFAULT '{}',
   ip_address INET,
   user_agent TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
@@ -144,6 +199,26 @@ $$ LANGUAGE plpgsql;
 CREATE TRIGGER update_user_profiles_updated_at
   BEFORE UPDATE ON public.user_profiles
   FOR EACH ROW EXECUTE FUNCTION public.handle_updated_at();
+
+-- Function to create user profile after signup
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS TRIGGER AS $$
+BEGIN
+  INSERT INTO public.user_profiles (id, first_name, last_name, email)
+  VALUES (
+    NEW.id,
+    COALESCE(NEW.raw_user_meta_data->>'first_name', ''),
+    COALESCE(NEW.raw_user_meta_data->>'last_name', ''),
+    NEW.email
+  );
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Trigger to automatically create user profile on signup
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 
 */
 

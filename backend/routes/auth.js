@@ -14,21 +14,21 @@ if (!JWT_SECRET) {
   throw new Error('JWT_SECRET environment variable is required');
 }
 
-// Validation middleware
+// Validation middleware - Made more user-friendly
 const validateRegistration = [
   body('firstName')
     .trim()
-    .isLength({ min: 2, max: 50 })
-    .withMessage('First name must be between 2 and 50 characters')
-    .matches(/^[a-zA-Z\s]*$/)
-    .withMessage('First name can only contain letters and spaces'),
+    .isLength({ min: 1, max: 50 })
+    .withMessage('First name is required')
+    .matches(/^[a-zA-Z\s\-\'\.]*$/)
+    .withMessage('First name contains invalid characters'),
   
   body('lastName')
     .trim()
-    .isLength({ min: 2, max: 50 })
-    .withMessage('Last name must be between 2 and 50 characters')
-    .matches(/^[a-zA-Z\s]*$/)
-    .withMessage('Last name can only contain letters and spaces'),
+    .isLength({ min: 1, max: 50 })
+    .withMessage('Last name is required')
+    .matches(/^[a-zA-Z\s\-\'\.]*$/)
+    .withMessage('Last name contains invalid characters'),
   
   body('email')
     .isEmail()
@@ -42,8 +42,10 @@ const validateRegistration = [
     .withMessage('Password must contain at least one uppercase letter, one lowercase letter, and one number'),
   
   body('acceptTerms')
-    .isBoolean()
-    .custom(value => value === true)
+    .custom(value => {
+      // Accept boolean true or string "true"
+      return value === true || value === 'true';
+    })
     .withMessage('You must accept the terms and conditions')
 ];
 
@@ -58,7 +60,24 @@ const validateLogin = [
     .withMessage('Password is required')
 ];
 
-// Register endpoint
+// Debug endpoint to see what data is being sent
+router.post('/debug-register', (req, res) => {
+  console.log('🔍 Registration Debug - Received data:');
+  console.log('Body:', JSON.stringify(req.body, null, 2));
+  console.log('Headers:', JSON.stringify(req.headers, null, 2));
+  
+  res.json({
+    success: true,
+    message: 'Debug endpoint - check server logs',
+    receivedData: req.body,
+    dataTypes: Object.keys(req.body).reduce((acc, key) => {
+      acc[key] = typeof req.body[key];
+      return acc;
+    }, {})
+  });
+});
+
+// User registration
 router.post('/register', validateRegistration, async (req, res) => {
   try {
     // Check validation errors

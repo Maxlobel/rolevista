@@ -1,168 +1,305 @@
-import { supabase, isSupabaseConfigured } from '../lib/supabase'
+import { supabase, handleSupabaseError } from '../lib/supabase'
 
-// Authentication Service for Supabase
-export const authService = {
-  
-  // Sign up new user with email and password
-  async signUp(email, password, userData = {}) {
+/**
+ * Authentication service using Supabase Auth
+ * Replaces the previous Express.js/JWT backend authentication
+ */
+class AuthService {
+  /**
+   * Register a new user with email and password
+   */
+  async register({ firstName, lastName, email, password, acceptTerms }) {
     try {
+      if (!acceptTerms) {
+        throw new Error('You must accept the terms and conditions')
+      }
+
+      // Validate password strength
+      if (password.length < 8) {
+        throw new Error('Password must be at least 8 characters long')
+      }
+
+      if (!/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(password)) {
+        throw new Error('Password must contain at least one uppercase letter, one lowercase letter, and one number')
+      }
+
+      // Create user with Supabase Auth
       const { data, error } = await supabase.auth.signUp({
-        email,
+        email: email.toLowerCase().trim(),
         password,
         options: {
           data: {
-            first_name: userData.firstName || '',
-            last_name: userData.lastName || '',
-            phone: userData.phone || '',
+            first_name: firstName.trim(),
+            last_name: lastName.trim(),
           }
         }
       })
 
-      if (error) throw error
+      if (error) {
+        // Handle specific Supabase auth errors
+        if (error.message.includes('User already registered')) {
+          throw new Error('An account with this email already exists')
+        }
+        throw error
+      }
 
-      // If user is created, also create profile
+      // Log user activity
       if (data.user) {
-        await this.createUserProfile(data.user.id, {
-          email,
-          first_name: userData.firstName || '',
-          last_name: userData.lastName || '',
-          phone: userData.phone || '',
-          location: userData.location || '',
-          years_of_experience: userData.experience || '',
-          current_role: userData.currentRole || '',
-          industry: userData.industry || '',
-          education_level: userData.education || '',
-          marketing_consent: userData.marketingConsent || false
-        })
-
-        // Track user registration activity
-        await this.trackActivity(data.user.id, 'user_registration', 'User created account', {
-          registration_method: 'email',
-          initial_profile_data: userData
+        await this.logActivity({
+          userId: data.user.id,
+          activityType: 'user_registered',
+          description: 'User registered successfully'
         })
       }
 
-      return { user: data.user, session: data.session, error: null }
+      return {
+        success: true,
+        data: {
+          user: {
+            id: data.user?.id,
+            firstName: firstName.trim(),
+            lastName: lastName.trim(),
+            email: email.toLowerCase(),
+            isVerified: data.user?.email_confirmed_at ? true : false,
+            isPremium: false,
+            needsEmailVerification: !data.user?.email_confirmed_at
+          },
+          session: data.session
+        }
+      }
     } catch (error) {
-      console.error('Sign up error:', error)
-      return { user: null, session: null, error: error.message }
+      console.error('Registration error:', error)
+      return {
+        success: false,
+        error: handleSupabaseError(error)
+      }
     }
-  },
+  }
 
-  // Sign in existing user
-  async signIn(email, password) {
+  /**
+   * Sign in user with email and password
+   */
+  async login({ email, password }) {
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
-        email,
+        email: email.toLowerCase().trim(),
         password
       })
 
-      if (error) throw error
+      if (error) {
+        if (error.message.includes('Invalid login credentials')) {
+          throw new Error('Invalid email or password')
+        }
+        throw error
+      }
 
-      // Track login activity
-      if (data.user) {
-        await this.trackActivity(data.user.id, 'login', 'User signed in', {
-          login_method: 'email'
+      // Get user profile
+      const userProfile = await this.getUserProfile(data.user.id)
+
+      // Log user activity
+      await this.logActivity({
+        userId: data.user.id,
+        activityType: 'user_login',
+        description: 'User logged in successfully'
+      })
+
+      return {
+        success: true,
+        data: {
+          user: {
+            id: data.user.id,
+            firstName: userProfile?.first_name || '',
+            lastName: userProfile?.last_name || '',
+            email: data.user.email,
+            isVerified: data.user.email_confirmed_at ? true : false,
+            isPremium: userProfile?.is_premium || false,
+            profileCompletion: userProfile?.profile_completion_percentage || 0,
+            joinedAt: data.user.created_at
+          },
+          session: data.session
+        }
+      }
+    } catch (error) {
+      console.error('Login error:', error)
+      return {
+        success: false,
+        error: handleSupabaseError(error)
+      }
+    }
+  }
+
+  /**
+   * Sign out current user
+   */
+  async logout() {
+    try {
+      // Log activity before logout
+      const user = await supabase.auth.getUser()
+      if (user.data.user) {
+        await this.logActivity({
+          userId: user.data.user.id,
+          activityType: 'user_logout',
+          description: 'User logged out'
         })
       }
 
-      return { user: data.user, session: data.session, error: null }
-    } catch (error) {
-      console.error('Sign in error:', error)
-      return { user: null, session: null, error: error.message }
-    }
-  },
-
-  // Sign out current user
-  async signOut() {
-    try {
       const { error } = await supabase.auth.signOut()
       if (error) throw error
-      return { error: null }
-    } catch (error) {
-      console.error('Sign out error:', error)
-      return { error: error.message }
-    }
-  },
 
-  // Get current user session
+      return { success: true }
+    } catch (error) {
+      console.error('Logout error:', error)
+      // Return success even if logging fails - user should still be logged out
+      return { success: true }
+    }
+  }
+
+  /**
+   * Get current user session and profile
+   */
   async getCurrentUser() {
     try {
-      // Check if Supabase is configured
-      if (!isSupabaseConfigured()) {
-        return { user: null, error: null } // No error, just no user when not configured
-      }
-
       const { data: { user }, error } = await supabase.auth.getUser()
       if (error) throw error
-      return { user, error: null }
+      
+      if (!user) {
+        return { success: true, data: { user: null, session: null } }
+      }
+
+      const userProfile = await this.getUserProfile(user.id)
+      const { data: { session } } = await supabase.auth.getSession()
+
+      return {
+        success: true,
+        data: {
+          user: {
+            id: user.id,
+            firstName: userProfile?.first_name || '',
+            lastName: userProfile?.last_name || '',
+            email: user.email,
+            isVerified: user.email_confirmed_at ? true : false,
+            isPremium: userProfile?.is_premium || false,
+            profileCompletion: userProfile?.profile_completion_percentage || 0,
+            joinedAt: user.created_at,
+            lastLoginAt: user.last_sign_in_at,
+            profileData: userProfile?.profile_data || {},
+            preferences: userProfile?.preferences || {}
+          },
+          session
+        }
+      }
     } catch (error) {
       console.error('Get current user error:', error)
-      return { user: null, error: error.message }
+      return {
+        success: false,
+        error: handleSupabaseError(error)
+      }
     }
-  },
+  }
 
-  // Get current session
-  async getCurrentSession() {
-    try {
-      const { data: { session }, error } = await supabase.auth.getSession()
-      if (error) throw error
-      return { session, error: null }
-    } catch (error) {
-      console.error('Get current session error:', error)
-      return { session: null, error: error.message }
-    }
-  },
-
-  // Reset password
+  /**
+   * Send password reset email
+   */
   async resetPassword(email) {
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: `${window.location.origin}/reset-password`
       })
-      if (error) throw error
-      return { error: null }
-    } catch (error) {
-      console.error('Reset password error:', error)
-      return { error: error.message }
-    }
-  },
 
-  // Update user password
+      if (error) throw error
+
+      return {
+        success: true,
+        message: 'Password reset email sent successfully'
+      }
+    } catch (error) {
+      console.error('Password reset error:', error)
+      return {
+        success: false,
+        error: handleSupabaseError(error)
+      }
+    }
+  }
+
+  /**
+   * Update user password
+   */
   async updatePassword(newPassword) {
     try {
       const { error } = await supabase.auth.updateUser({
         password: newPassword
       })
+
       if (error) throw error
-      return { error: null }
+
+      return {
+        success: true,
+        message: 'Password updated successfully'
+      }
     } catch (error) {
       console.error('Update password error:', error)
-      return { error: error.message }
+      return {
+        success: false,
+        error: handleSupabaseError(error)
+      }
     }
-  },
+  }
 
-  // Create user profile in database
-  async createUserProfile(userId, profileData) {
+  /**
+   * Sign in with social provider (Google, GitHub, etc.)
+   */
+  async signInWithProvider(provider) {
     try {
-      const { data, error } = await supabase
-        .from('user_profiles')
-        .insert([{
-          id: userId,
-          ...profileData,
-          profile_completion_percentage: this.calculateProfileCompletion(profileData)
-        }])
-        .select()
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider,
+        options: {
+          redirectTo: `${window.location.origin}/dashboard`
+        }
+      })
 
       if (error) throw error
-      return { profile: data[0], error: null }
-    } catch (error) {
-      console.error('Create user profile error:', error)
-      return { profile: null, error: error.message }
-    }
-  },
 
-  // Get user profile
+      return {
+        success: true,
+        data
+      }
+    } catch (error) {
+      console.error('Social sign in error:', error)
+      return {
+        success: false,
+        error: handleSupabaseError(error)
+      }
+    }
+  }
+
+  /**
+   * Resend email verification
+   */
+  async resendVerification(email) {
+    try {
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email
+      })
+
+      if (error) throw error
+
+      return {
+        success: true,
+        message: 'Verification email sent successfully'
+      }
+    } catch (error) {
+      console.error('Resend verification error:', error)
+      return {
+        success: false,
+        error: handleSupabaseError(error)
+      }
+    }
+  }
+
+  /**
+   * Get user profile from database
+   */
   async getUserProfile(userId) {
     try {
       const { data, error } = await supabase
@@ -171,111 +308,50 @@ export const authService = {
         .eq('id', userId)
         .single()
 
-      if (error) throw error
-      return { profile: data, error: null }
-    } catch (error) {
-      console.error('Get user profile error:', error)
-      return { profile: null, error: error.message }
-    }
-  },
-
-  // Update user profile
-  async updateUserProfile(userId, updates) {
-    try {
-      const updatedData = {
-        ...updates,
-        profile_completion_percentage: this.calculateProfileCompletion(updates),
-        updated_at: new Date().toISOString()
+      if (error && error.code !== 'PGRST116') { // Ignore "not found" errors
+        throw error
       }
 
-      const { data, error } = await supabase
-        .from('user_profiles')
-        .update(updatedData)
-        .eq('id', userId)
-        .select()
-
-      if (error) throw error
-
-      // Track profile update activity
-      await this.trackActivity(userId, 'profile_update', 'User updated profile', {
-        updated_fields: Object.keys(updates)
-      })
-
-      return { profile: data[0], error: null }
+      return data
     } catch (error) {
-      console.error('Update user profile error:', error)
-      return { profile: null, error: error.message }
+      console.error('Get user profile error:', error)
+      return null
     }
-  },
+  }
 
-  // Calculate profile completion percentage
-  calculateProfileCompletion(profileData) {
-    const requiredFields = [
-      'first_name', 'last_name', 'email', 'phone', 'location', 
-      'years_of_experience', 'current_role', 'industry'
-    ]
-    
-    const completedFields = requiredFields.filter(field => 
-      profileData[field] && profileData[field].toString().trim().length > 0
-    )
-    
-    return Math.round((completedFields.length / requiredFields.length) * 100)
-  },
-
-  // Track user activity
-  async trackActivity(userId, activityType, description, metadata = {}) {
+  /**
+   * Log user activity
+   */
+  async logActivity({ userId, activityType, description, metadata = {} }) {
     try {
       const { error } = await supabase
         .from('user_activities')
-        .insert([{
+        .insert({
           user_id: userId,
           activity_type: activityType,
           activity_description: description,
           metadata,
           user_agent: navigator.userAgent,
-          created_at: new Date().toISOString()
-        }])
+          // Note: IP address will be handled server-side by Supabase
+        })
 
       if (error) throw error
-      return { error: null }
     } catch (error) {
-      console.error('Track activity error:', error)
-      return { error: error.message }
+      // Don't throw error for activity logging failures
+      console.error('Log activity error:', error)
     }
-  },
+  }
 
-  // Listen to auth state changes
+  /**
+   * Listen to auth state changes
+   */
   onAuthStateChange(callback) {
     return supabase.auth.onAuthStateChange((event, session) => {
       callback(event, session)
     })
-  },
-
-  // Check if user email is verified
-  async isEmailVerified() {
-    try {
-      const { data: { user } } = await supabase.auth.getUser()
-      return user?.email_confirmed_at ? true : false
-    } catch (error) {
-      console.error('Check email verified error:', error)
-      return false
-    }
-  },
-
-  // Resend email verification
-  async resendEmailVerification() {
-    try {
-      const { error } = await supabase.auth.resend({
-        type: 'signup',
-        email: (await this.getCurrentUser()).user?.email
-      })
-      if (error) throw error
-      return { error: null }
-    } catch (error) {
-      console.error('Resend email verification error:', error)
-      return { error: error.message }
-    }
   }
 }
 
+// Create and export singleton instance
+export const authService = new AuthService()
 export default authService 

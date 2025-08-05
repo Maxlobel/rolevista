@@ -1,23 +1,26 @@
-import { configureStore } from '@reduxjs/toolkit';
-import authSlice from './slices/authSlice';
-import uiSlice from './slices/uiSlice';
-import assessmentSlice from './slices/assessmentSlice';
+import { configureStore } from '@reduxjs/toolkit'
+import authReducer, { authStateChangeMiddleware } from './slices/authSlice'
+import assessmentReducer from './slices/assessmentSlice'
+import uiReducer from './slices/uiSlice'
 
 export const store = configureStore({
   reducer: {
-    auth: authSlice,
-    ui: uiSlice,
-    assessment: assessmentSlice,
+    auth: authReducer,
+    assessment: assessmentReducer,
+    ui: uiReducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({
       serializableCheck: {
-        ignoredActions: ['persist/PERSIST'],
+        // Ignore these action types for serializable check
+        ignoredActions: ['auth/setAuthState'],
+        // Ignore these field paths in all actions
+        ignoredActionsPaths: ['meta.arg', 'payload.session'],
+        // Ignore these paths in the state
+        ignoredPaths: ['auth.session'],
       },
-    }),
+    }).concat(authStateChangeMiddleware),
   devTools: process.env.NODE_ENV !== 'production',
-});
+})
 
-// For TypeScript projects, you would export these types:
-// export type RootState = ReturnType<typeof store.getState>;
-// export type AppDispatch = typeof store.dispatch; 
+export default store 

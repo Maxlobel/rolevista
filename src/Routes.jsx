@@ -48,6 +48,7 @@ const Routes = () => {
                               <Route path="/subscription-pricing" element={<SubscriptionPricing />} />
                   <Route path="/assessment-results" element={<AssessmentResults />} />
                   <Route path="/login" element={<Login />} />
+                  <Route path="/register" element={<Auth />} />
                   <Route path="/auth" element={<Auth />} />
                   <Route path="/sign-up" element={<Auth />} />
                   <Route path="/sign-in" element={<Auth />} />

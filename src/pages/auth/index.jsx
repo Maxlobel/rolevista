@@ -1,17 +1,29 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useDispatch, useSelector } from 'react-redux';
 import { Eye, EyeOff, User, Mail, Phone, MapPin, Briefcase, GraduationCap } from 'lucide-react';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
-import { railwayAuthService as authService } from '../../services/railwayAuth';
+import { registerUser, loginUser, clearError } from '../../store/slices/authSlice';
 import PasswordStrengthIndicator from './components/PasswordStrengthIndicator';
 
 const AuthPage = () => {
   const navigate = useNavigate();
+  const dispatch = useDispatch();
+  
+  // Redux state
+  const { 
+    isAuthenticated, 
+    isRegisterLoading, 
+    isLoginLoading, 
+    registerError, 
+    loginError,
+    user 
+  } = useSelector((state) => state.auth);
+  
   const [isSignUp, setIsSignUp] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState({});
 
   // Form data for sign up
@@ -39,21 +51,25 @@ const AuthPage = () => {
 
   // Check if user is already authenticated
   useEffect(() => {
-    const checkAuth = async () => {
-      const { user } = await authService.getCurrentUser();
-      if (user) {
-        navigate('/ai-career-assessment');
-      }
-    };
-    checkAuth();
-  }, [navigate]);
+    if (isAuthenticated && user) {
+      navigate('/ai-career-assessment');
+    }
+  }, [isAuthenticated, user, navigate]);
+
+  // Clear Redux errors when component mounts or tab changes
+  useEffect(() => {
+    dispatch(clearError());
+  }, [dispatch, isSignUp]);
 
   // Handle input changes
   const handleSignUpChange = (field, value) => {
-    setSignUpData(prev => ({
-      ...prev,
-      [field]: value
-    }));
+    setSignUpData(prev => {
+      const newData = {
+        ...prev,
+        [field]: value
+      };
+      return newData;
+    });
     // Clear error when user starts typing
     if (errors[field]) {
       setErrors(prev => ({
@@ -81,12 +97,21 @@ const AuthPage = () => {
   const validateSignUp = () => {
     const newErrors = {};
 
+    // Match backend validation exactly
     if (!signUpData.firstName.trim()) {
       newErrors.firstName = 'First name is required';
+    } else if (signUpData.firstName.length > 50) {
+      newErrors.firstName = 'First name must be less than 50 characters';
+    } else if (!/^[a-zA-Z\s\-\'\.]*$/.test(signUpData.firstName)) {
+      newErrors.firstName = 'First name contains invalid characters';
     }
 
     if (!signUpData.lastName.trim()) {
       newErrors.lastName = 'Last name is required';
+    } else if (signUpData.lastName.length > 50) {
+      newErrors.lastName = 'Last name must be less than 50 characters';
+    } else if (!/^[a-zA-Z\s\-\'\.]*$/.test(signUpData.lastName)) {
+      newErrors.lastName = 'Last name contains invalid characters';
     }
 
     if (!signUpData.email.trim()) {
@@ -135,54 +160,88 @@ const AuthPage = () => {
   const handleSignUp = async (e) => {
     e.preventDefault();
     
-    if (!validateSignUp()) {
+    // Get fresh form data from the form elements directly
+    const formData = new FormData(e.target);
+    const termsChecked = document.getElementById('terms').checked;
+    
+    // Update state with fresh data if needed
+    if (termsChecked !== signUpData.termsAccepted) {
+      setSignUpData(prev => ({ ...prev, termsAccepted: termsChecked }));
+    }
+    
+    // Create validation data with fresh values
+    const validationData = {
+      ...signUpData,
+      termsAccepted: termsChecked
+    };
+    
+    // Validate with fresh data
+    const newErrors = {};
+    
+    if (!validationData.firstName.trim()) {
+      newErrors.firstName = 'First name is required';
+    } else if (validationData.firstName.length > 50) {
+      newErrors.firstName = 'First name must be less than 50 characters';
+    } else if (!/^[a-zA-Z\s\-\'\.]*$/.test(validationData.firstName)) {
+      newErrors.firstName = 'First name contains invalid characters';
+    }
+
+    if (!validationData.lastName.trim()) {
+      newErrors.lastName = 'Last name is required';
+    } else if (validationData.lastName.length > 50) {
+      newErrors.lastName = 'Last name must be less than 50 characters';
+    } else if (!/^[a-zA-Z\s\-\'\.]*$/.test(validationData.lastName)) {
+      newErrors.lastName = 'Last name contains invalid characters';
+    }
+
+    if (!validationData.email.trim()) {
+      newErrors.email = 'Email is required';
+    } else if (!/\S+@\S+\.\S+/.test(validationData.email)) {
+      newErrors.email = 'Please enter a valid email address';
+    }
+
+    if (!validationData.password) {
+      newErrors.password = 'Password is required';
+    } else if (validationData.password.length < 8) {
+      newErrors.password = 'Password must be at least 8 characters';
+    } else if (!/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(validationData.password)) {
+      newErrors.password = 'Password must contain at least one uppercase letter, lowercase letter, and number';
+    }
+
+    if (validationData.password !== validationData.confirmPassword) {
+      newErrors.confirmPassword = 'Passwords do not match';
+    }
+
+    if (!validationData.termsAccepted) {
+      newErrors.termsAccepted = 'You must accept the terms and conditions';
+    }
+    
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
       return;
     }
 
-    setIsLoading(true);
+    // Dispatch the registerUser action
+    const result = await dispatch(registerUser({
+      firstName: validationData.firstName,
+      lastName: validationData.lastName,
+      email: validationData.email,
+      password: validationData.password,
+      acceptTerms: validationData.termsAccepted,
+      phone: validationData.phone,
+      location: validationData.location,
+      experience: validationData.experience,
+      currentRole: validationData.currentRole,
+      industry: validationData.industry,
+      education: validationData.education,
+      marketingConsent: validationData.marketingConsent
+    }));
 
-    try {
-      const { user, session, error } = await authService.signUp(
-        signUpData.email,
-        signUpData.password,
-        {
-          firstName: signUpData.firstName,
-          lastName: signUpData.lastName,
-          phone: signUpData.phone,
-          location: signUpData.location,
-          experience: signUpData.experience,
-          currentRole: signUpData.currentRole,
-          industry: signUpData.industry,
-          education: signUpData.education,
-          marketingConsent: signUpData.marketingConsent,
-          acceptTerms: signUpData.termsAccepted
-        }
-      );
-
-      if (error) {
-        // Make sign-up error messages more user-friendly
-        let friendlyError = error;
-        if (error.includes('already exists')) {
-          friendlyError = 'This email is already registered. Try signing in instead, or use a different email address.';
-        } else if (error.includes('Password must')) {
-          friendlyError = 'Password must be at least 8 characters with uppercase, lowercase, and a number.';
-        } else if (error.includes('Invalid email')) {
-          friendlyError = 'Please enter a valid email address.';
-        } else if (error.includes('accept the terms')) {
-          friendlyError = 'Please accept the terms and conditions to continue.';
-        }
-        
-        setErrors({ general: friendlyError });
-        return;
-      }
-
+    if (registerUser.fulfilled.match(result)) {
       // Success - navigate to assessment
       navigate('/ai-career-assessment');
-    } catch (error) {
-      setErrors({ general: 'An unexpected error occurred. Please try again.' });
-    } finally {
-      setIsLoading(false);
     }
+    // Errors are handled by Redux and displayed via registerError
   };
 
   // Handle sign in
@@ -193,35 +252,21 @@ const AuthPage = () => {
       return;
     }
 
-    setIsLoading(true);
+    // Dispatch the loginUser action
+    const result = await dispatch(loginUser({
+      email: signInData.email,
+      password: signInData.password
+    }));
 
-    try {
-      const { user, session, error } = await authService.signIn(
-        signInData.email,
-        signInData.password
-      );
-
-      if (error) {
-        // Make sign-in error messages more user-friendly
-        let friendlyError = error;
-        if (error.includes('Invalid credentials') || error.includes('incorrect')) {
-          friendlyError = 'Invalid email or password. Please check your credentials and try again.';
-        } else if (error.includes('not found') || error.includes('does not exist')) {
-          friendlyError = 'No account found with this email. Please sign up first or check your email address.';
-        }
-        
-        setErrors({ general: friendlyError });
-        return;
-      }
-
+    if (loginUser.fulfilled.match(result)) {
       // Success - navigate to assessment
       navigate('/ai-career-assessment');
-    } catch (error) {
-      setErrors({ general: 'An unexpected error occurred. Please try again.' });
-    } finally {
-      setIsLoading(false);
     }
+    // Errors are handled by Redux and displayed via loginError
   };
+
+  // Get current error to display
+  const currentError = isSignUp ? registerError : loginError;
 
   return (
     <div className="min-h-screen bg-background">
@@ -269,6 +314,7 @@ const AuthPage = () => {
             onClick={() => {
               setIsSignUp(true);
               setErrors({});
+              dispatch(clearError());
             }}
             className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
               isSignUp
@@ -282,6 +328,7 @@ const AuthPage = () => {
             onClick={() => {
               setIsSignUp(false);
               setErrors({});
+              dispatch(clearError());
             }}
             className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
               !isSignUp
@@ -297,9 +344,9 @@ const AuthPage = () => {
         <div className="bg-card rounded-xl border border-border p-8 shadow-sm">
           
           {/* General Error */}
-          {errors.general && (
+          {(currentError || errors.general) && (
             <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4 mb-6">
-              <p className="text-destructive text-sm">{errors.general}</p>
+              <p className="text-destructive text-sm">{currentError || errors.general}</p>
             </div>
           )}
 
@@ -494,9 +541,9 @@ const AuthPage = () => {
                     id="marketing"
                     checked={signUpData.marketingConsent}
                     onChange={(e) => handleSignUpChange('marketingConsent', e.target.checked)}
-                    className="mt-1"
+                    className="mt-1 h-4 w-4 text-primary border-gray-300 rounded focus:ring-primary"
                   />
-                  <label htmlFor="marketing" className="text-sm text-muted-foreground">
+                  <label htmlFor="marketing" className="text-sm text-muted-foreground cursor-pointer">
                     I'd like to receive career insights and job recommendations via email
                   </label>
                 </div>
@@ -506,10 +553,12 @@ const AuthPage = () => {
                     type="checkbox"
                     id="terms"
                     checked={signUpData.termsAccepted}
-                    onChange={(e) => handleSignUpChange('termsAccepted', e.target.checked)}
-                    className="mt-1"
+                    onChange={(e) => {
+                      handleSignUpChange('termsAccepted', e.target.checked);
+                    }}
+                    className="mt-1 h-4 w-4 text-primary border-gray-300 rounded focus:ring-primary"
                   />
-                  <label htmlFor="terms" className="text-sm text-muted-foreground">
+                  <label htmlFor="terms" className="text-sm text-muted-foreground cursor-pointer">
                     I agree to the Terms of Service and Privacy Policy *
                   </label>
                 </div>
@@ -522,10 +571,10 @@ const AuthPage = () => {
               <Button
                 type="submit"
                 className="w-full"
-                loading={isLoading}
-                disabled={isLoading}
+                loading={isRegisterLoading}
+                disabled={isRegisterLoading}
               >
-                {isLoading ? 'Creating Account...' : 'Create Account & Start Assessment'}
+                {isRegisterLoading ? 'Creating Account...' : 'Create Account & Start Assessment'}
               </Button>
             </form>
           ) : (
@@ -582,10 +631,10 @@ const AuthPage = () => {
               <Button
                 type="submit"
                 className="w-full"
-                loading={isLoading}
-                disabled={isLoading}
+                loading={isLoginLoading}
+                disabled={isLoginLoading}
               >
-                {isLoading ? 'Signing In...' : 'Sign In'}
+                {isLoginLoading ? 'Signing In...' : 'Sign In'}
               </Button>
             </form>
           )}
